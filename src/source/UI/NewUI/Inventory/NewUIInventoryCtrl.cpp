@@ -68,6 +68,8 @@ namespace
     {
         if (pItem == nullptr || pItem->Type == -1)
             return EquipStatus::None;
+        if (Hero == nullptr || CharacterAttribute == nullptr)
+            return EquipStatus::None;
 
         const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
         const int equipSlot = pItemAttr->m_byItemSlot;
@@ -152,15 +154,19 @@ namespace
         }
 
         int slotCount = 0;
-        AddEquippedCompareSlot(pHoverItem, equipSlot, pSlots, slotCount);
-
         if (equipSlot == EQUIPMENT_WEAPON_RIGHT)
         {
             AddEquippedCompareSlot(pHoverItem, EQUIPMENT_WEAPON_LEFT, pSlots, slotCount);
+            AddEquippedCompareSlot(pHoverItem, EQUIPMENT_WEAPON_RIGHT, pSlots, slotCount);
         }
         else if (equipSlot == EQUIPMENT_RING_RIGHT)
         {
             AddEquippedCompareSlot(pHoverItem, EQUIPMENT_RING_LEFT, pSlots, slotCount);
+            AddEquippedCompareSlot(pHoverItem, EQUIPMENT_RING_RIGHT, pSlots, slotCount);
+        }
+        else
+        {
+            AddEquippedCompareSlot(pHoverItem, equipSlot, pSlots, slotCount);
         }
 
         return slotCount;
@@ -1359,6 +1365,7 @@ void SEASON3B::CNewUIInventoryCtrl::Render()
 
     if (m_pNew3DRenderMng)
     {
+        RenderEquipStatusBackgrounds();
         m_pNew3DRenderMng->RenderUI2DEffect(INVENTORY_CAMERA_Z_ORDER, UI2DEffectCallback, this, RENDER_NUMBER_OF_ITEM, 0);
         if (m_pToolTipItem && GetPickedItem() == nullptr)
         {
@@ -1710,6 +1717,47 @@ void SEASON3B::CNewUIInventoryCtrl::RenderNumberOfItem()
     DisableAlphaBlend();
 }
 
+void SEASON3B::CNewUIInventoryCtrl::RenderEquipStatusBackgrounds()
+{
+    if (m_StorageType != STORAGE_TYPE::INVENTORY)
+    {
+        return;
+    }
+    if (Hero == nullptr || CharacterAttribute == nullptr)
+    {
+        return;
+    }
+
+    EnableAlphaTest();
+
+    for (ITEM* pItem : m_vecItem)
+    {
+        const EquipStatus status = GetEquipStatus(pItem);
+        if (status == EquipStatus::ClassMismatch)
+        {
+            glColor4f(1.0f, 0.15f, 0.15f, 0.45f);
+        }
+        else if (status == EquipStatus::StatInsufficient)
+        {
+            glColor4f(1.0f, 0.85f, 0.0f, 0.45f);
+        }
+        else
+        {
+            continue;
+        }
+
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+        const float x = m_Pos.x + (pItem->x * INVENTORY_SQUARE_WIDTH);
+        const float y = m_Pos.y + (pItem->y * INVENTORY_SQUARE_HEIGHT);
+        const float width = pItemAttr->Width * INVENTORY_SQUARE_WIDTH;
+        const float height = pItemAttr->Height * INVENTORY_SQUARE_HEIGHT;
+
+        RenderColor(x, y, width, height);
+    }
+
+    EndRenderColor();
+}
+
 void SEASON3B::CNewUIInventoryCtrl::RenderItemToolTip()
 {
     if (m_pToolTipItem)
@@ -1740,13 +1788,7 @@ void SEASON3B::CNewUIInventoryCtrl::RenderItemToolTip()
                     pSecondEquippedCompare = &CharacterMachine->Equipment[equipSlots[1]];
                 }
 
-                const EquipStatus status = GetEquipStatus(m_pToolTipItem);
-                if (status == EquipStatus::ClassMismatch)
-                    SetTooltipFrameColor(TOOLTIP_FRAME_RED);
-                else if (status == EquipStatus::StatInsufficient)
-                    SetTooltipFrameColor(TOOLTIP_FRAME_YELLOW);
-                else
-                    SetTooltipFrameColor(TOOLTIP_FRAME_NORMAL);
+                SetTooltipFrameColor(TOOLTIP_FRAME_NORMAL);
             }
 
             RenderItemInfo(iTargetX, iTargetY, m_pToolTipItem, false, 0, false, pEquippedCompare, pSecondEquippedCompare);

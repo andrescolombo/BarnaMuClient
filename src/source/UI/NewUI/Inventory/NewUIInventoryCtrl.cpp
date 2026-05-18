@@ -20,6 +20,7 @@ using namespace SEASON3B;
 namespace
 {
     constexpr int MAX_COMPARE_EQUIPPED_ITEMS = 2;
+    constexpr float EQUIP_STATUS_BACKGROUND_ALPHA = 0.12f;
 
     enum class EquipStatus { None, ClassMismatch, StatInsufficient, CanEquip };
 
@@ -170,6 +171,22 @@ namespace
         }
 
         return slotCount;
+    }
+
+    bool SetEquipStatusBackgroundColor(EquipStatus status)
+    {
+        if (status == EquipStatus::ClassMismatch)
+        {
+            glColor4f(1.0f, 0.15f, 0.15f, EQUIP_STATUS_BACKGROUND_ALPHA);
+            return true;
+        }
+        if (status == EquipStatus::StatInsufficient)
+        {
+            glColor4f(1.0f, 0.85f, 0.0f, EQUIP_STATUS_BACKGROUND_ALPHA);
+            return true;
+        }
+
+        return false;
     }
 }
 
@@ -1733,15 +1750,7 @@ void SEASON3B::CNewUIInventoryCtrl::RenderEquipStatusBackgrounds()
     for (ITEM* pItem : m_vecItem)
     {
         const EquipStatus status = GetEquipStatus(pItem);
-        if (status == EquipStatus::ClassMismatch)
-        {
-            glColor4f(1.0f, 0.15f, 0.15f, 0.45f);
-        }
-        else if (status == EquipStatus::StatInsufficient)
-        {
-            glColor4f(1.0f, 0.85f, 0.0f, 0.45f);
-        }
-        else
+        if (!SetEquipStatusBackgroundColor(status))
         {
             continue;
         }
@@ -1905,8 +1914,8 @@ void SEASON3B::CNewUIInventoryCtrl::Render3D()
         const float y = m_Pos.y + (pItem->y * INVENTORY_SQUARE_HEIGHT);
         const float width = pItemAttr->Width * INVENTORY_SQUARE_WIDTH;
         const float height = pItemAttr->Height * INVENTORY_SQUARE_HEIGHT;
-        glColor4f(1.f, 1.f, 1.f, 1.f);
 
+        glColor4f(1.f, 1.f, 1.f, 1.f);
         RenderItem3D(x, y, width, height, pItem->Type, pItem->Level, pItem->ExcellentFlags, pItem->AncientDiscriminator, false);
     }
 }

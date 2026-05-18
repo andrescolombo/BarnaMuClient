@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "UI/NewUI/Inventory/NewUIInventoryCtrl.h"
 #include "UI/NewUI/Inventory/NewUIItemMng.h"
+#include "UI/NewUI/Inventory/NewUIMyInventory.h"
 #include "UI/NewUI/NewUISystem.h"
 #include "Engine/Object/ZzzInventory.h"
 #include "GameLogic/Items/CComGem.h"
@@ -13,7 +14,184 @@
 #include "Network/Server/SocketSystem.h"
 #include "World/MapInfra/MapManager.h"
 #include "GameLogic/Items/MixMgr.h"
+#include "Character/CharacterManager.h"
 using namespace SEASON3B;
+
+namespace
+{
+    enum class EquipStatus { None, ClassMismatch, StatInsufficient, CanEquip };
+
+    // Class + step-class check only (no slot, no stat requirements).
+    bool IsClassCompatibleForItem(const ITEM* pItem)
+    {
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+        const BYTE byFirstClass = gCharacterManager.GetBaseClass(Hero->Class);
+        const BYTE byStepClass  = gCharacterManager.GetStepClass(Hero->Class);
+
+        bool bClassOk = pItemAttr->RequireClass[byFirstClass] != 0;
+        if (!bClassOk && byFirstClass == CLASS_DARK
+            && pItemAttr->RequireClass[CLASS_WIZARD] && pItemAttr->RequireClass[CLASS_KNIGHT])
+            bClassOk = true;
+
+        if (!bClassOk)
+            return false;
+        if (pItemAttr->RequireClass[byFirstClass] > byStepClass)
+            return false;
+
+        return true;
+    }
+
+    // Stat + level check only (no class, no slot).
+    bool HasSufficientStatsForItem(const ITEM* pItem)
+    {
+        const WORD wStrength  = CharacterAttribute->Strength  + CharacterAttribute->AddStrength;
+        const WORD wDexterity = CharacterAttribute->Dexterity + CharacterAttribute->AddDexterity;
+        const WORD wEnergy    = CharacterAttribute->Energy    + CharacterAttribute->AddEnergy;
+        const WORD wVitality  = CharacterAttribute->Vitality  + CharacterAttribute->AddVitality;
+        const WORD wCharisma  = CharacterAttribute->Charisma  + CharacterAttribute->AddCharisma;
+        const WORD wLevel     = CharacterAttribute->Level;
+
+        if (pItem->RequireStrength  > wStrength)  return false;
+        if (pItem->RequireDexterity > wDexterity) return false;
+        if (pItem->RequireEnergy    > wEnergy)    return false;
+        if (pItem->RequireVitality  > wVitality)  return false;
+        if (pItem->RequireCharisma  > wCharisma)  return false;
+        if (pItem->RequireLevel     > wLevel)     return false;
+
+        return true;
+    }
+
+    // Returns equip status for tooltip frame coloring.
+    EquipStatus GetEquipStatus(const ITEM* pItem)
+    {
+        if (pItem == nullptr || pItem->Type == -1)
+            return EquipStatus::None;
+
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+        const int equipSlot = pItemAttr->m_byItemSlot;
+        if (equipSlot < 0 || equipSlot >= MAX_EQUIPMENT_INDEX)
+            return EquipStatus::None;
+
+        if (!IsClassCompatibleForItem(pItem))
+            return EquipStatus::ClassMismatch;
+
+        if (!HasSufficientStatsForItem(pItem))
+            return EquipStatus::StatInsufficient;
+
+        return EquipStatus::CanEquip;
+    }
+
+    void SetItemBackgroundColor(const ITEM* pItem, STORAGE_TYPE storageType)
+    {
+        if (storageType == STORAGE_TYPE::INVENTORY)
+        {
+            const EquipStatus status = GetEquipStatus(pItem);
+            if (status == EquipStatus::ClassMismatch)
+            {
+                glColor4f(1.0f, 0.15f, 0.15f, 0.45f);
+                return;
+            }
+            if (status == EquipStatus::StatInsufficient)
+            {
+                glColor4f(1.0f, 0.85f, 0.0f, 0.45f);
+                return;
+            }
+        }
+
+        if (pItem->byColorState == ITEM_COLOR_NORMAL)
+        {
+            glColor4f(0.3f, 0.5f, 0.5f, 0.6f);
+        }
+        else if (pItem->byColorState == ITEM_COLOR_DURABILITY_50)
+        {
+            glColor4f(1.0f, 1.0f, 0.f, 0.4f);
+        }
+        else if (pItem->byColorState == ITEM_COLOR_DURABILITY_70)
+        {
+            glColor4f(1.0f, 0.66f, 0.f, 0.4f);
+        }
+        else if (pItem->byColorState == ITEM_COLOR_DURABILITY_80)
+        {
+            glColor4f(1.0f, 0.33f, 0.f, 0.4f);
+        }
+        else if (pItem->byColorState == ITEM_COLOR_DURABILITY_100)
+        {
+            glColor4f(1.0f, 0.f, 0.f, 0.4f);
+        }
+        else if (pItem->byColorState == ITEM_COLOR_TRADE_WARNING)
+        {
+            glColor4f(1.0f, 0.2f, 0.1f, 0.4f);
+        }
+    }
+
+    // Class+slot check without stat requirements so stat-insufficient items
+    // still show the side-by-side compare tooltip.
+    bool IsEquipableIgnoreStats(int equipSlot, const ITEM* pItem)
+    {
+        if (!IsClassCompatibleForItem(pItem))
+            return false;
+
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+        if (pItemAttr->m_byItemSlot == equipSlot)
+            return true;
+        if (pItemAttr->m_byItemSlot == EQUIPMENT_WEAPON_RIGHT && equipSlot == EQUIPMENT_WEAPON_LEFT)
+            return true;
+        if (pItemAttr->m_byItemSlot == EQUIPMENT_RING_RIGHT && equipSlot == EQUIPMENT_RING_LEFT)
+            return true;
+
+        return false;
+    }
+
+    int GetEquippedCompareSlot(const ITEM* pHoverItem)
+    {
+        if (pHoverItem == nullptr || pHoverItem->Type == -1 || g_pMyInventory == nullptr)
+        {
+            return -1;
+        }
+
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pHoverItem->Type];
+        int equipSlot = pItemAttr->m_byItemSlot;
+        if (equipSlot < 0 || equipSlot >= MAX_EQUIPMENT_INDEX)
+        {
+            return -1;
+        }
+
+        if (!g_pMyInventory->IsEquipable(equipSlot, const_cast<ITEM*>(pHoverItem)))
+        {
+            // Try left-hand fallback with full check first
+            if (equipSlot == EQUIPMENT_WEAPON_RIGHT
+                && g_pMyInventory->IsEquipable(EQUIPMENT_WEAPON_LEFT, const_cast<ITEM*>(pHoverItem)))
+            {
+                equipSlot = EQUIPMENT_WEAPON_LEFT;
+            }
+            else
+            {
+                // Full check failed; fall back to class+slot only so that
+                // stat-insufficient items still show a compare tooltip.
+                if (IsEquipableIgnoreStats(equipSlot, const_cast<ITEM*>(pHoverItem)))
+                {
+                    // slot matches — keep equipSlot as-is
+                }
+                else if (equipSlot == EQUIPMENT_WEAPON_RIGHT
+                    && IsEquipableIgnoreStats(EQUIPMENT_WEAPON_LEFT, const_cast<ITEM*>(pHoverItem)))
+                {
+                    equipSlot = EQUIPMENT_WEAPON_LEFT;
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+        }
+
+        if (CharacterMachine->Equipment[equipSlot].Type == -1)
+        {
+            return -1;
+        }
+
+        return equipSlot;
+    }
+}
 
 SEASON3B::CNewUIPickedItem::CNewUIPickedItem()
 {
@@ -976,30 +1154,7 @@ void SEASON3B::CNewUIInventoryCtrl::Render()
                         SetItemColorState(pItem);
                     }
 
-                    if (pItem->byColorState == ITEM_COLOR_NORMAL)
-                    {
-                        glColor4f(0.3f, 0.5f, 0.5f, 0.6f);
-                    }
-                    else if (pItem->byColorState == ITEM_COLOR_DURABILITY_50)
-                    {
-                        glColor4f(1.0f, 1.0f, 0.f, 0.4f);
-                    }
-                    else if (pItem->byColorState == ITEM_COLOR_DURABILITY_70)
-                    {
-                        glColor4f(1.0f, 0.66f, 0.f, 0.4f);
-                    }
-                    else if (pItem->byColorState == ITEM_COLOR_DURABILITY_80)
-                    {
-                        glColor4f(1.0f, 0.33f, 0.f, 0.4f);
-                    }
-                    else if (pItem->byColorState == ITEM_COLOR_DURABILITY_100)
-                    {
-                        glColor4f(1.0f, 0.f, 0.f, 0.4f);
-                    }
-                    else if (pItem->byColorState == ITEM_COLOR_TRADE_WARNING)
-                    {
-                        glColor4f(1.0f, 0.2f, 0.1f, 0.4f);
-                    }
+                    SetItemBackgroundColor(pItem, m_StorageType);
                 }
                 else
                 {
@@ -1573,7 +1728,17 @@ void SEASON3B::CNewUIInventoryCtrl::RenderItemToolTip()
 
         if (m_ToolTipType == TOOLTIP_TYPE_INVENTORY)
         {
-            RenderItemInfo(iTargetX, iTargetY, m_pToolTipItem, false);
+            ITEM* pEquippedCompare = nullptr;
+            if (m_StorageType == STORAGE_TYPE::INVENTORY)
+            {
+                const int equipSlot = GetEquippedCompareSlot(m_pToolTipItem);
+                if (equipSlot != -1)
+                {
+                    pEquippedCompare = &CharacterMachine->Equipment[equipSlot];
+                }
+            }
+
+            RenderItemInfo(iTargetX, iTargetY, m_pToolTipItem, false, 0, false, pEquippedCompare);
         }
         else if (m_ToolTipType == TOOLTIP_TYPE_REPAIR)
         {

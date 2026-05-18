@@ -369,7 +369,7 @@ if (DOTNET_EXECUTABLE)
                     "DOTNET_CLI_HOME=${DOTNET_TEMP_DIR_NATIVE}"
                     "TEMP=${DOTNET_TEMP_DIR_NATIVE}"
                     "TMP=${DOTNET_TEMP_DIR_NATIVE}"
-                    "${DOTNET_EXECUTABLE}" publish "${DOTNET_PROJ_NATIVE}" -c $<CONFIG> -r ${DOTNET_RID} -p:PlatformTarget=${DOTNET_PLATFORM} -o "${DOTNET_TEMP_OUTPUT_NATIVE}" --nologo
+                    "${DOTNET_EXECUTABLE}" publish "${DOTNET_PROJ_NATIVE}" -c $<CONFIG> -r ${DOTNET_RID} -p:PlatformTarget=${DOTNET_PLATFORM} -p:IlcUseEnvironmentalTools=true -o "${DOTNET_TEMP_OUTPUT_NATIVE}" --nologo
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DOTNET_TEMP_OUTPUT}/MUnique.Client.Library.dll" "${DOTNET_DLL_PATH}"
             DEPENDS "${DOTNET_PROJ}" ${DOTNET_SOURCES}
             COMMENT "Checking for .NET Client Library updates..."

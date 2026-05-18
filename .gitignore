@@ -41,3 +41,7 @@ build-mingw/
 **/*.log
 # Local-only files
 docs/reviews/
+
+# graphify (https://github.com/safishamsi/graphify)
+graphify-out/manifest.json
+graphify-out/cost.json

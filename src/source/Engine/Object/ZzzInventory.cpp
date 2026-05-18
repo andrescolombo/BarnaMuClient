@@ -299,6 +299,8 @@ int RenderTextList(int sx, int sy, int TextNum, int Tab, int iSort = RT3_SORT_CE
     return TextWidth + Tab;
 }
 
+static TOOLTIP_FRAME_COLOR g_tooltipFrameColor = TOOLTIP_FRAME_NORMAL;
+
 void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSort, int iRenderPoint, BOOL bUseBG)
 {
     SIZE TextSize = { 0, 0 };
@@ -367,14 +369,21 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 
     if (bUseBG == TRUE && TextNum > 0)
     {
-        glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-        RenderColor((float)iPos_x - 1, fsy - 1, (float)fWidth + 1, (float)1);
-        RenderColor((float)iPos_x - 1, fsy - 1, (float)1, (float)fHeight + 1);
-        RenderColor((float)iPos_x - 1 + fWidth + 1, (float)fsy - 1, (float)1, (float)fHeight + 1);
-        RenderColor((float)iPos_x - 1, fsy - 1 + fHeight + 1, (float)fWidth + 2, (float)1);
-
         glColor4f(0.0f, 0.0f, 0.0f, 0.8f);
         RenderColor((float)iPos_x, fsy, (float)fWidth, (float)fHeight);
+
+        if (g_tooltipFrameColor == TOOLTIP_FRAME_RED)
+            glColor4f(1.0f, 0.15f, 0.15f, 1.0f);
+        else if (g_tooltipFrameColor == TOOLTIP_FRAME_YELLOW)
+            glColor4f(1.0f, 0.85f, 0.0f, 1.0f);
+        else
+            glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+
+        RenderColor((float)iPos_x - 1, fsy - 1, (float)fWidth + 2, (float)1);
+        RenderColor((float)iPos_x - 1, fsy - 1, (float)1, (float)fHeight + 2);
+        RenderColor((float)iPos_x - 1 + fWidth + 1, (float)fsy - 1, (float)1, (float)fHeight + 2);
+        RenderColor((float)iPos_x - 1, fsy - 1 + fHeight + 1, (float)fWidth + 2, (float)1);
+
         glEnable(GL_TEXTURE_2D);
     }
 
@@ -2107,10 +2116,149 @@ void GetSpecialOptionText(int Type, wchar_t* Text, WORD Option, BYTE Value, int 
     }
 }
 
-void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bItemTextListBoxUse)
+namespace
+{
+    ITEM* g_pTooltipCompareEquipped = nullptr;
+    constexpr int kCompareTooltipGap = 8;
+
+    float MeasureTipTextListWidth(int TextNum, int Tab = 0)
+    {
+        SIZE TextSize = { 0, 0 };
+        float fWidth = 0.f;
+        for (int i = 0; i < TextNum; ++i)
+        {
+            if (TextList[i][0] == '\0')
+            {
+                break;
+            }
+
+            if (TextBold[i])
+            {
+                g_pRenderText->SetFont(g_hFontBold);
+            }
+            else
+            {
+                g_pRenderText->SetFont(g_hFont);
+            }
+
+            GetTextExtentPoint32(g_pRenderText->GetFontDC(), TextList[i], lstrlen(TextList[i]), &TextSize);
+
+            if (fWidth < TextSize.cx)
+            {
+                fWidth = static_cast<float>(TextSize.cx);
+            }
+        }
+
+        fWidth /= g_fScreenRate_x;
+        if (Tab > 0)
+        {
+            fWidth = Tab / g_fScreenRate_x * 2.f;
+        }
+        return fWidth + 4.f;
+    }
+
+    int ComputeTipLeftFromCenter(int sx, float fWidth)
+    {
+        int iPos_x = sx - static_cast<int>(fWidth / 2.f);
+        if (iPos_x < 0)
+        {
+            iPos_x = 0;
+        }
+        if (iPos_x + fWidth > static_cast<int>(WindowWidth / g_fScreenRate_x))
+        {
+            iPos_x = static_cast<int>(WindowWidth / g_fScreenRate_x - fWidth - 1.f);
+        }
+        return iPos_x;
+    }
+
+    void RenderTipTextListAtLeft(int leftX, int sy, int TextNum, int Tab = 0)
+    {
+        const float fWidth = MeasureTipTextListWidth(TextNum, Tab);
+        int iPos_x = leftX;
+        if (iPos_x < 0)
+        {
+            iPos_x = 0;
+        }
+        if (iPos_x + fWidth > static_cast<int>(WindowWidth / g_fScreenRate_x))
+        {
+            iPos_x = static_cast<int>(WindowWidth / g_fScreenRate_x - fWidth - 1.f);
+        }
+
+        RenderTipTextList(iPos_x + static_cast<int>(fWidth / 2.f), sy, TextNum, Tab);
+    }
+
+    void GetItemAttackRangeForTooltip(const ITEM* ip, int& damageMin, int& damageMax)
+    {
+        damageMin = ip->DamageMin;
+        damageMax = ip->DamageMax;
+
+        if (ip->Level >= ip->Jewel_Of_Harmony_OptionLevel)
+        {
+            StrengthenCapability SC;
+            g_pUIJewelHarmonyinfo->GetStrengthenCapability(&SC, const_cast<ITEM*>(ip), 1);
+
+            if (SC.SI_isSP)
+            {
+                damageMin += SC.SI_SP.SI_minattackpower;
+                damageMax += SC.SI_SP.SI_maxattackpower;
+            }
+        }
+    }
+
+    int GetItemDefenseForTooltip(const ITEM* ip)
+    {
+        int defense = ip->Defense;
+
+        if (ip->Level >= ip->Jewel_Of_Harmony_OptionLevel)
+        {
+            StrengthenCapability SC;
+            g_pUIJewelHarmonyinfo->GetStrengthenCapability(&SC, const_cast<ITEM*>(ip), 2);
+
+            if (SC.SI_isSD)
+            {
+                defense += SC.SI_SD.SI_defense;
+            }
+        }
+
+        return defense;
+    }
+
+    void ApplyTooltipStatCompareColor(int textIndex, int hoverValue, int equippedValue)
+    {
+        if (g_pTooltipCompareEquipped == nullptr || equippedValue <= 0)
+        {
+            return;
+        }
+
+        if (hoverValue > equippedValue)
+        {
+            TextListColor[textIndex] = TEXT_COLOR_GREEN;
+        }
+        else if (hoverValue < equippedValue)
+        {
+            TextListColor[textIndex] = TEXT_COLOR_RED;
+        }
+    }
+}
+
+void SetTooltipFrameColor(TOOLTIP_FRAME_COLOR color)
+{
+    g_tooltipFrameColor = color;
+}
+
+void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bItemTextListBoxUse, ITEM* pCompareEquipped, bool bAnchorLeft, float* pOutWidth)
 {
     if (ip->Type == -1)
         return;
+
+    if (pCompareEquipped != nullptr)
+    {
+        g_pTooltipCompareEquipped = pCompareEquipped;
+    }
+    else if (!bAnchorLeft)
+    {
+        g_pTooltipCompareEquipped = nullptr;
+    }
 
     tm* ExpireTime;
     if (ip->bPeriodItem == true && ip->bExpiredPeriod == false)
@@ -4003,7 +4151,6 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
             {
                 TextListColor[TextNum] = TEXT_COLOR_YELLOW;
                 TextBold[TextNum] = false;
-                TextNum++;
             }
             else
             {
@@ -4012,8 +4159,17 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
                 else
                     TextListColor[TextNum] = TEXT_COLOR_WHITE;
                 TextBold[TextNum] = false;
-                TextNum++;
             }
+
+            if (g_pTooltipCompareEquipped != nullptr)
+            {
+                int equippedMin = 0;
+                int equippedMax = 0;
+                GetItemAttackRangeForTooltip(g_pTooltipCompareEquipped, equippedMin, equippedMax);
+                ApplyTooltipStatCompareColor(TextNum, DamageMax + maxindex, equippedMax);
+            }
+
+            TextNum++;
         }
         else
         {
@@ -4046,6 +4202,11 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
                 TextListColor[TextNum] = TEXT_COLOR_WHITE;
         }
 
+        if (g_pTooltipCompareEquipped != nullptr)
+        {
+            ApplyTooltipStatCompareColor(TextNum, ip->Defense + maxdefense, GetItemDefenseForTooltip(g_pTooltipCompareEquipped));
+        }
+
         TextBold[TextNum] = false;
         TextNum++;
     }
@@ -4053,6 +4214,7 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
     {
         mu_swprintf(TextList[TextNum], I18N::Game::SpellResistanceD, ip->MagicDefense);
         TextListColor[TextNum] = TEXT_COLOR_WHITE;
+        ApplyTooltipStatCompareColor(TextNum, ip->MagicDefense, g_pTooltipCompareEquipped ? g_pTooltipCompareEquipped->MagicDefense : 0);
         TextBold[TextNum] = false;
         TextNum++;
     }
@@ -4063,6 +4225,7 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
             TextListColor[TextNum] = TEXT_COLOR_BLUE;
         else
             TextListColor[TextNum] = TEXT_COLOR_WHITE;
+        ApplyTooltipStatCompareColor(TextNum, ip->SuccessfulBlocking, g_pTooltipCompareEquipped ? g_pTooltipCompareEquipped->SuccessfulBlocking : 0);
         TextBold[TextNum] = false;
         TextNum++;
     }
@@ -5648,14 +5811,42 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
         }
     }
 
-    bool isrendertooltip = true;
+    const float tipWidth = MeasureTipTextListWidth(TextNum, 0);
 
-    if (isrendertooltip)
+    if (pOutWidth != nullptr)
     {
-        if (bItemTextListBoxUse)
-            RenderTipTextList(sx, sy, TextNum, 0, RT3_SORT_CENTER, STRP_BOTTOMCENTER);
-        else
-            RenderTipTextList(sx, sy, TextNum, 0);
+        *pOutWidth = tipWidth;
+        g_pTooltipCompareEquipped = nullptr;
+        return;
+    }
+
+    const int tipLeft = bAnchorLeft ? sx : ComputeTipLeftFromCenter(sx, tipWidth);
+
+    if (pCompareEquipped != nullptr && pCompareEquipped->Type != -1 && !bAnchorLeft)
+    {
+        // Measure the equipped tooltip width before rendering anything
+        float equippedWidth = 0.f;
+        RenderItemInfo(0, sy, pCompareEquipped, Sell, Inventype, bItemTextListBoxUse, nullptr, true, &equippedWidth);
+
+        // Render main tooltip
+        RenderTipTextListAtLeft(tipLeft, sy, TextNum, 0);
+
+        // Reset frame color so the compare tooltip gets a normal border
+        g_tooltipFrameColor = TOOLTIP_FRAME_NORMAL;
+        g_pTooltipCompareEquipped = nullptr;
+
+        // Render compare tooltip to the LEFT of the main tooltip
+        const int equippedLeft = tipLeft - static_cast<int>(equippedWidth) - kCompareTooltipGap;
+        RenderItemInfo(equippedLeft, sy, pCompareEquipped, Sell, Inventype, bItemTextListBoxUse, nullptr, true);
+    }
+    else
+    {
+        RenderTipTextListAtLeft(tipLeft, sy, TextNum, 0);
+        if (!bAnchorLeft)
+        {
+            g_pTooltipCompareEquipped = nullptr;
+            g_tooltipFrameColor = TOOLTIP_FRAME_NORMAL;
+        }
     }
 }
 

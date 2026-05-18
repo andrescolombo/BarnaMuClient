@@ -404,10 +404,10 @@ void PrintItem(wchar_t* FileName)
                 ItemValue(&ip, 0);
 
                 if (j == 0)
-                    fwprintf(fp, L"%20s %8d %8d %8d %8d %8d %8d %8d %8d %8d\n", p->Name, DamageMin, DamageMax, Defense, SuccessfulBlocking, RequireStrength, RequireDexterity, RequireEnergy, p->WeaponSpeed, ItemValue(&ip));
+                    fwprintf(fp, L"%20s %8d %8d %8d %8d %8d %8d %8d %8d %8d\n", p->Name, DamageMin, DamageMax, Defense, SuccessfulBlocking, RequireStrength, RequireDexterity, RequireEnergy, p->WeaponSpeed, (int)ItemValue(&ip));
                 //fwprintf(fp,"%20s %4d%%",p->Name, iRate);
                 else
-                    fwprintf(fp, L"%17s +%d %8d %8d %8d %8d %8d %8d %8d %8d %8d\n", L"", Level, DamageMin, DamageMax, Defense, SuccessfulBlocking, RequireStrength, RequireDexterity, RequireEnergy, p->WeaponSpeed, ItemValue(&ip));
+                    fwprintf(fp, L"%17s +%d %8d %8d %8d %8d %8d %8d %8d %8d %8d\n", L"", Level, DamageMin, DamageMax, Defense, SuccessfulBlocking, RequireStrength, RequireDexterity, RequireEnergy, p->WeaponSpeed, (int)ItemValue(&ip));
                 //fwprintf(fp,"%4d%%<+%d>",iRate,Level);
             }
             fwprintf(fp, L"\n");

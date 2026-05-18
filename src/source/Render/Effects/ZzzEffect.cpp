@@ -5156,7 +5156,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
                 {
                     const int	TOTAL_LIFETIME = 60;
                     vec3_t		v3PosStart, v3PosTarget;
-                    vec3_t		arv3PosProcess[3];
+                    vec3_t		arv3PosProcess[4];
 
                     o->ExtState = TOTAL_LIFETIME;
                     o->LifeTime = TOTAL_LIFETIME;

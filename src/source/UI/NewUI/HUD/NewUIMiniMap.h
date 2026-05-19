@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <vector>
 #include "UI/NewUI/NewUIBase.h"
 #include "UI/NewUI/NewUIManager.h"
 #include "UI/NewUI/HUD/NewUIMainFrameWindow.h"
@@ -18,6 +19,13 @@ namespace SEASON3B
         enum IMAGE_LIST
         {
             IMAGE_MINIMAP_INTERFACE = BITMAP_MINI_MAP_BEGIN,
+        };
+
+        struct SpawnPoint
+        {
+            int     locX;
+            int     locY;
+            wchar_t name[64];
         };
 
         enum MASTER_DATA
@@ -53,6 +61,7 @@ namespace SEASON3B
         bool					m_HasMoveTarget;
         int						m_MoveTargetX;
         int						m_MoveTargetY;
+        std::vector<SpawnPoint>	m_SpawnPoints;
 
     public:
         bool					m_bSuccess;
@@ -83,6 +92,8 @@ namespace SEASON3B
         void Render_Text();
         void Render_Icon();
         void Render_Scroll();
+        void Render_Spawns();
+        void LoadSpawnPoints(const wchar_t* worldName);
         void ResetMoveTarget();
         bool TrySendMoveSegment(int targetTileX, int targetTileY);
         void ContinueMoveTarget();

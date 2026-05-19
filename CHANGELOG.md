@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Added an experimental inventory rearrange button that supports `1x1`, `1x3`, `2x2`, `2x3`, `2x4`, and `4x3` items, computes one fixed compact 8x8 layout, prefers width-aligned lanes for wide items, refreshes the client-only item key after each accepted move, and uses temporary empty slots to keep moving items one at a time after a single click.
+- Mu Helper hotkeys (`src/source/UI/NewUI/HUD/NewUIHotKey.cpp`):
+  - `Z` — opens/closes the Mu Helper configuration panel (was already bound; behavior unchanged).
+  - `F8` — starts/stops (play/pause) the Mu Helper without opening the panel (new binding).
+  - Added `#include "MUHelper/MuHelper.h"` to `NewUIHotKey.cpp` to access `MUHelper::g_MuHelper.Toggle()`.
+
+- Added an experimental inventory rearrange button that supports all item sizes from `1x1` to `4x4` (16 combinations), computes one fixed compact 8x8 layout, prefers width-aligned lanes for wide items, refreshes the client-only item key after each accepted move, and uses temporary empty slots to keep moving items one at a time after a single click.
 
 - Dimmed inventory equip-status slot overlays:
   - Red slot background still marks items for a different class.

@@ -244,6 +244,8 @@ bool SEASON3B::CNewUIMiniMap::Render()
             break;
     }
 
+    Render_Spawns();
+
     float Ch_wid = 12;
     RenderImage(IMAGE_MINIMAP_INTERFACE + 3, 325, 230, Ch_wid, Ch_wid, 0.f, 0.f, 17.5f / 32.f, 17.5f / 32.f);
 
@@ -348,11 +350,91 @@ void SEASON3B::CNewUIMiniMap::LoadImages(const wchar_t* Filename)
 
         delete[] Buffer;
     }
+
+    LoadSpawnPoints(Filename);
 }
 
 void SEASON3B::CNewUIMiniMap::UnloadImages()
 {
     DeleteBitmap(IMAGE_MINIMAP_INTERFACE);
+    m_SpawnPoints.clear();
+}
+
+void SEASON3B::CNewUIMiniMap::LoadSpawnPoints(const wchar_t* worldName)
+{
+    m_SpawnPoints.clear();
+
+    wchar_t path[300];
+    mu_swprintf(path, L"Data\\Local\\%ls\\Minimap\\SpawnPoints_%ls.txt",
+                g_strSelectedML.c_str(), worldName);
+
+    FILE* fp = _wfopen(path, L"r");
+    if (fp == nullptr)
+        return;
+
+    char line[256];
+    while (fgets(line, static_cast<int>(sizeof(line)), fp) != nullptr)
+    {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
+            continue;
+
+        SpawnPoint sp;
+        char nameUtf8[64] = {};
+        const int matched = sscanf_s(line, "%d %d %63[^\n\r]",
+                                     &sp.locX, &sp.locY,
+                                     nameUtf8, static_cast<unsigned>(sizeof(nameUtf8)));
+        if (matched < 2)
+            continue;
+
+        if (matched >= 3)
+            MultiByteToWideChar(CP_UTF8, 0, nameUtf8, -1, sp.name, static_cast<int>(sizeof(sp.name) / sizeof(sp.name[0])));
+        else
+            sp.name[0] = L'\0';
+
+        m_SpawnPoints.push_back(sp);
+    }
+    fclose(fp);
+}
+
+void SEASON3B::CNewUIMiniMap::Render_Spawns()
+{
+    if (m_SpawnPoints.empty() || Hero == nullptr)
+        return;
+
+    static constexpr float kPalette[][3] = {
+        { 1.f, 0.3f, 0.3f },   // red
+        { 1.f, 0.7f, 0.1f },   // orange
+        { 0.3f, 1.f, 0.3f },   // green
+        { 0.4f, 0.8f, 1.f },   // cyan
+        { 0.9f, 0.4f, 1.f },   // purple
+        { 1.f, 1.f, 0.2f },    // yellow
+    };
+    constexpr int kPaletteSize = static_cast<int>(sizeof(kPalette) / sizeof(kPalette[0]));
+
+    const float zoomWidth  = static_cast<float>(m_Lenth[m_MiniPos].x);
+    const float zoomHeight = static_cast<float>(m_Lenth[m_MiniPos].y);
+    const float heroTx = (static_cast<float>(Hero->PositionY) / 256.f) * zoomWidth;
+    const float heroTy = (static_cast<float>(Hero->PositionX) / 256.f) * zoomHeight;
+
+    constexpr float kRot      = 45.f;
+    constexpr float kUvScale  = 17.5f / 32.f;
+    constexpr int   kMarkSize = 12;
+
+    for (int i = 0; i < static_cast<int>(m_SpawnPoints.size()); ++i)
+    {
+        const SpawnPoint& sp = m_SpawnPoints[i];
+        const float* col = kPalette[i % kPaletteSize];
+        glColor4f(col[0], col[1], col[2], 1.f);
+
+        const float spTx = (static_cast<float>(sp.locY) / 256.f) * zoomWidth;
+        const float spTy = (static_cast<float>(sp.locX) / 256.f) * zoomHeight;
+        RenderPointRotate(IMAGE_MINIMAP_INTERFACE + 5, spTx, spTy,
+                          kMarkSize, kMarkSize,
+                          zoomWidth - heroTx, zoomHeight - heroTy,
+                          zoomWidth, zoomHeight,
+                          kRot, 0.f, kUvScale, kUvScale, -1);
+    }
+    glColor4f(1.f, 1.f, 1.f, 1.f);
 }
 
 bool SEASON3B::CNewUIMiniMap::UpdateMouseEvent()

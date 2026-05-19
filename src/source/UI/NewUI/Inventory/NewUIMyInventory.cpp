@@ -105,12 +105,7 @@ namespace
 
     bool IsAllowedArrangeItemSize(int width, int height)
     {
-        return (width == 1 && height == 1)
-            || (width == 2 && height == 2)
-            || (width == 1 && height == 3)
-            || (width == 2 && height == 3)
-            || (width == 2 && height == 4)
-            || (width == 4 && height == 3);
+        return width >= 1 && width <= 4 && height >= 1 && height <= 4;
     }
 
     void OccupyArrangeCells(std::vector<DWORD>& occupied, int columnCount, const ArrangeItem& item, DWORD value)

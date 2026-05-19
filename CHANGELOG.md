@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added an experimental inventory rearrange button that compacts main inventory items through normal server item-move requests.
+
 - Dimmed inventory equip-status slot overlays:
   - Red slot background still marks items for a different class.
   - Yellow slot background still marks items with missing stat requirements.

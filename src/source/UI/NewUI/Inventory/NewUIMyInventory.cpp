@@ -35,7 +35,57 @@ extern bool SelectFlag;
 #include "Audio/DSPlaySound.h"
 #include "Engine/Object/ZzzInterface.h"
 
+#include <algorithm>
+#include <vector>
+
 using namespace SEASON3B;
+
+namespace
+{
+    constexpr int ARRANGE_BUTTON_X_OFFSET = 161;
+    constexpr int ARRANGE_BUTTON_Y_OFFSET = 391;
+    constexpr int ARRANGE_BUTTON_WIDTH = 18;
+    constexpr int ARRANGE_BUTTON_HEIGHT = 29;
+
+    bool IsInventoryRearrangeInterfaceBlocked()
+    {
+        if (g_pNewUISystem == nullptr)
+        {
+            return true;
+        }
+
+        return g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_NPCSHOP) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_TRADE) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_DEVILSQUARE) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_BLOODCASTLE) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_MIXINVENTORY) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_STORAGE) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_MYSHOP_INVENTORY) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_LUCKYITEMWND) == true
+            || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_PURCHASESHOP_INVENTORY) == true;
+    }
+
+    bool CanPlaceItem(const std::vector<bool>& occupied, int columnCount, int rowCount, int column, int row, int width, int height)
+    {
+        if (column + width > columnCount || row + height > rowCount)
+        {
+            return false;
+        }
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                if (occupied[(row + y) * columnCount + column + x])
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+}
 
 CNewUIMyInventory::CNewUIMyInventory()
 {
@@ -53,6 +103,7 @@ CNewUIMyInventory::CNewUIMyInventory()
 
     m_bRepairEnableLevel = false;
     m_bMyShopOpen = false;
+    m_bInventoryRearrangePending = false;
 }
 
 CNewUIMyInventory::~CNewUIMyInventory()
@@ -422,6 +473,7 @@ void CNewUIMyInventory::SetPos(int x, int y)
     m_BtnRepair.SetPos(m_Pos.x + 50, m_Pos.y + 391);
     m_BtnMyShop.SetPos(m_Pos.x + 87, m_Pos.y + 391);
     m_BtnExpand.SetPos(m_Pos.x + 87 + 37, m_Pos.y + 391);
+    m_BtnArrange.SetPos(m_Pos.x + ARRANGE_BUTTON_X_OFFSET, m_Pos.y + ARRANGE_BUTTON_Y_OFFSET);
 }
 
 const POINT& CNewUIMyInventory::GetPos() const
@@ -685,6 +737,8 @@ bool CNewUIMyInventory::Update()
 
     if (IsVisible())
     {
+        ProcessInventoryRearrange();
+
         m_iPointedSlot = -1;
         for (int i = 0; i < MAX_EQUIPMENT_INDEX; i++)
         {
@@ -840,6 +894,7 @@ void CNewUIMyInventory::OpenningProcess()
 
 void CNewUIMyInventory::ClosingProcess()
 {
+    m_bInventoryRearrangePending = false;
     m_pNewInventoryCtrl->BackupPickedItem();
     RepairEnable = 0;
     SetRepairMode(false);
@@ -1203,6 +1258,10 @@ void CNewUIMyInventory::SetButtonInfo()
     m_BtnExpand.ChangeButtonImgState(true, IMAGE_INVENTORY_EXPAND_BTN, false);
     m_BtnExpand.ChangeButtonInfo(m_Pos.x + 87 + 37, m_Pos.y + 391, 36, 29);
     m_BtnExpand.ChangeToolTipText(&I18N::Game::OpenExpandedInventoryK, true);
+
+    m_BtnArrange.ChangeButtonImgState(true, IMAGE_INVENTORY_EXPAND_BTN, false);
+    m_BtnArrange.ChangeButtonInfo(m_Pos.x + ARRANGE_BUTTON_X_OFFSET, m_Pos.y + ARRANGE_BUTTON_Y_OFFSET, ARRANGE_BUTTON_WIDTH, ARRANGE_BUTTON_HEIGHT);
+    m_BtnArrange.ChangeToolTipText(L"Rearrange inventory", true);
 }
 
 void CNewUIMyInventory::LoadImages() const
@@ -1372,6 +1431,7 @@ void CNewUIMyInventory::RenderButtons()
         {
             m_BtnMyShop.Render();
         }
+        m_BtnArrange.Render();
     }
     m_BtnExit.Render();
     m_BtnExpand.Render();
@@ -1648,6 +1708,177 @@ bool CNewUIMyInventory::BtnProcess()
 
             return true;
         }
+
+        if (m_BtnArrange.UpdateMouseEvent() == true)
+        {
+            RequestInventoryRearrange();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool CNewUIMyInventory::CanUseInventoryRearrange() const
+{
+    return m_pNewInventoryCtrl != nullptr
+        && CNewUIInventoryCtrl::GetPickedItem() == nullptr
+        && EquipmentItem == false
+        && IsInventoryRearrangeInterfaceBlocked() == false;
+}
+
+bool CNewUIMyInventory::FindRearrangeDestination(ITEM* pItem, int& targetIndex) const
+{
+    if (pItem == nullptr || pItem->Type == -1 || m_pNewInventoryCtrl == nullptr)
+    {
+        return false;
+    }
+
+    const int columnCount = m_pNewInventoryCtrl->GetNumberOfColumn();
+    const int rowCount = m_pNewInventoryCtrl->GetNumberOfRow();
+    std::vector<bool> occupied(columnCount * rowCount, false);
+
+    const size_t itemCount = m_pNewInventoryCtrl->GetNumberOfItems();
+    for (size_t i = 0; i < itemCount; ++i)
+    {
+        ITEM* pOtherItem = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
+        if (pOtherItem == nullptr || pOtherItem == pItem)
+        {
+            continue;
+        }
+
+        const ITEM_ATTRIBUTE* pOtherItemAttr = &ItemAttribute[pOtherItem->Type];
+        for (int y = 0; y < pOtherItemAttr->Height; ++y)
+        {
+            for (int x = 0; x < pOtherItemAttr->Width; ++x)
+            {
+                const int column = pOtherItem->x + x;
+                const int row = pOtherItem->y + y;
+                if (column >= 0 && column < columnCount && row >= 0 && row < rowCount)
+                {
+                    occupied[row * columnCount + column] = true;
+                }
+            }
+        }
+    }
+
+    const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+    const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
+    if (sourceIndex < MAX_EQUIPMENT)
+    {
+        return false;
+    }
+
+    const int sourceLocalIndex = sourceIndex - MAX_EQUIPMENT;
+
+    for (int row = 0; row < rowCount; ++row)
+    {
+        for (int column = 0; column < columnCount; ++column)
+        {
+            const int localIndex = row * columnCount + column;
+            if (localIndex >= sourceLocalIndex)
+            {
+                return false;
+            }
+            if (CanPlaceItem(occupied, columnCount, rowCount, column, row, pItemAttr->Width, pItemAttr->Height))
+            {
+                targetIndex = localIndex + MAX_EQUIPMENT;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void CNewUIMyInventory::ProcessInventoryRearrange()
+{
+    if (!m_bInventoryRearrangePending)
+    {
+        return;
+    }
+    if (EquipmentItem)
+    {
+        return;
+    }
+    if (!CanUseInventoryRearrange())
+    {
+        m_bInventoryRearrangePending = false;
+        return;
+    }
+    if (!TryMoveNextRearrangeItem())
+    {
+        m_bInventoryRearrangePending = false;
+    }
+}
+
+void CNewUIMyInventory::RequestInventoryRearrange()
+{
+    if (!CanUseInventoryRearrange())
+    {
+        return;
+    }
+
+    m_bInventoryRearrangePending = true;
+    ProcessInventoryRearrange();
+}
+
+bool CNewUIMyInventory::TryMoveNextRearrangeItem()
+{
+    if (m_pNewInventoryCtrl == nullptr)
+    {
+        return false;
+    }
+
+    std::vector<ITEM*> items;
+    const size_t itemCount = m_pNewInventoryCtrl->GetNumberOfItems();
+    items.reserve(itemCount);
+    for (size_t i = 0; i < itemCount; ++i)
+    {
+        ITEM* pItem = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
+        if (pItem != nullptr)
+        {
+            items.push_back(pItem);
+        }
+    }
+
+    std::sort(items.begin(), items.end(), [this](ITEM* pLeft, ITEM* pRight)
+    {
+        return m_pNewInventoryCtrl->GetIndexByItem(pLeft) < m_pNewInventoryCtrl->GetIndexByItem(pRight);
+    });
+
+    for (ITEM* pItem : items)
+    {
+        int targetIndex = -1;
+        if (!FindRearrangeDestination(pItem, targetIndex))
+        {
+            continue;
+        }
+
+        const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
+        if (!CNewUIInventoryCtrl::CreatePickedItem(m_pNewInventoryCtrl, pItem))
+        {
+            return false;
+        }
+
+        CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+        if (pPickedItem == nullptr || pPickedItem->GetItem() == nullptr)
+        {
+            CNewUIInventoryCtrl::BackupPickedItem();
+            return false;
+        }
+
+        m_pNewInventoryCtrl->RemoveItem(pItem);
+        pPickedItem->HidePickedItem();
+
+        if (!SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, sourceIndex,
+            pPickedItem->GetItem(), STORAGE_TYPE::INVENTORY, targetIndex))
+        {
+            CNewUIInventoryCtrl::BackupPickedItem();
+            return false;
+        }
+
+        return true;
     }
 
     return false;

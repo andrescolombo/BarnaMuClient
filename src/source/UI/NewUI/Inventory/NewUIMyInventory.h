@@ -87,6 +87,7 @@ namespace SEASON3B
         CNewUIButton m_BtnExit;
         CNewUIButton m_BtnMyShop;
         CNewUIButton m_BtnExpand;
+        CNewUIButton m_BtnArrange;
 
         MYSHOP_MODE m_MyShopMode;
         SEASON3B::REPAIR_MODE m_RepairMode;
@@ -94,6 +95,7 @@ namespace SEASON3B
 
         bool m_bRepairEnableLevel;
         bool m_bMyShopOpen;
+        bool m_bInventoryRearrangePending;
 
     public:
         CNewUIMyInventory();
@@ -197,6 +199,11 @@ namespace SEASON3B
         bool EquipmentWindowProcess();
         bool InventoryProcess() const;
         bool BtnProcess();
+        bool CanUseInventoryRearrange() const;
+        bool FindRearrangeDestination(ITEM* pItem, int& targetIndex) const;
+        void ProcessInventoryRearrange();
+        void RequestInventoryRearrange();
+        bool TryMoveNextRearrangeItem();
 
         void RenderItemToolTip(int iSlotIndex) const;
         bool CanOpenMyShopInterface();

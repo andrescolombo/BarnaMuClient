@@ -107,6 +107,28 @@ using namespace SEASON3B;
 
 ConfigData _TempConfig;
 
+namespace
+{
+int FindCharacterSkillSlotIndex(int iSkillType)
+{
+    // Skill tooltips read CharacterAttribute->Skill[slot], so convert raw skill ids first.
+    if (CharacterAttribute == nullptr)
+    {
+        return -1;
+    }
+
+    for (int i = 0; i < MAX_MAGIC; ++i)
+    {
+        if (CharacterAttribute->Skill[i] == iSkillType)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+}
+
 CNewUIMuHelper::CNewUIMuHelper()
 {
     m_pNewUIMng = NULL;
@@ -117,6 +139,10 @@ CNewUIMuHelper::CNewUIMuHelper()
 
     m_iSelectedSkillSlot = 0;
     m_aiSelectedSkills.fill(-1);
+    m_bRenderSkillInfo = false;
+    m_iRenderSkillInfoType = 0;
+    m_iRenderSkillInfoPosX = 0;
+    m_iRenderSkillInfoPosY = 0;
 }
 
 CNewUIMuHelper::~CNewUIMuHelper()
@@ -1243,6 +1269,8 @@ bool CNewUIMuHelper::Render()
         m_ItemInput.Render();
     }
 
+    RenderSelectedSkillInfo();
+
     DisableAlphaBlend();
 
     return true;
@@ -1454,6 +1482,7 @@ int CNewUIMuHelper::UpdateMouseBoxList()
 void CNewUIMuHelper::RenderIconList()
 {
     auto li = m_IconList.begin();
+    m_bRenderSkillInfo = false;
 
     for (; li != m_IconList.end(); li++)
     {
@@ -1465,13 +1494,36 @@ void CNewUIMuHelper::RenderIconList()
 
             if (li->first < MAX_SKILLS_SLOT)
             {
-                if (m_aiSelectedSkills[li->first] >= 0 && m_aiSelectedSkills[li->first] < MAX_SKILLS)
+                int iAssigned = m_aiSelectedSkills[li->first];
+                if (iAssigned >= 0 && iAssigned < MAX_SKILLS)
                 {
-                    RenderSkillIcon(m_aiSelectedSkills[li->first], cImage->m_Pos.x + 6, cImage->m_Pos.y + 6, 20, 28);
+                    RenderSkillIcon(iAssigned, cImage->m_Pos.x + 6, cImage->m_Pos.y + 6, 20, 28);
+
+                    if (CheckMouseIn(cImage->m_Pos.x, cImage->m_Pos.y, cImage->m_Size.x, cImage->m_Size.y))
+                    {
+                        int skillSlotIndex = FindCharacterSkillSlotIndex(iAssigned);
+                        if (skillSlotIndex != -1)
+                        {
+                            m_bRenderSkillInfo = true;
+                            m_iRenderSkillInfoType = skillSlotIndex;
+                            m_iRenderSkillInfoPosX = cImage->m_Pos.x;
+                            m_iRenderSkillInfoPosY = cImage->m_Pos.y;
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+void CNewUIMuHelper::RenderSelectedSkillInfo()
+{
+    if (!m_bRenderSkillInfo)
+    {
+        return;
+    }
+
+    UI::Skills::Tooltip::Render(m_iRenderSkillInfoPosX + 15, m_iRenderSkillInfoPosY - 10, m_iRenderSkillInfoType);
 }
 
 int CNewUIMuHelper::UpdateMouseIconList()
@@ -1847,6 +1899,8 @@ void CNewUIMuHelperSkillList::Release()
 
 void CNewUIMuHelperSkillList::Reset()
 {
+    m_bFilterByAttackSkills = false;
+    m_bFilterByBuffSkills = false;
     m_bRenderSkillInfo = false;
     m_iRenderSkillInfoType = 0;
     m_iRenderSkillInfoPosX = 0;
@@ -1885,6 +1939,9 @@ void CNewUIMuHelperSkillList::UnloadImages()
 
 bool CNewUIMuHelperSkillList::UpdateMouseEvent()
 {
+    // The picker renders tooltips later through the 2D effect manager, after hover is known.
+    UpdateHoveredSkillInfo();
+
     if (IsRelease(VK_LBUTTON))
     {
         int skillId = UpdateMouseSkillList();
@@ -1900,6 +1957,39 @@ bool CNewUIMuHelperSkillList::UpdateMouseEvent()
     }
 
     return false;
+}
+
+void CNewUIMuHelperSkillList::UpdateHoveredSkillInfo()
+{
+    m_bRenderSkillInfo = false;
+    m_iRenderSkillInfoType = -1;
+
+    for (auto& skillIcon : m_skillIconMap)
+    {
+        cSkillIcon* pIcon = &skillIcon.second;
+
+        if (!CheckMouseIn(pIcon->location.x, pIcon->location.y, pIcon->area.cx, pIcon->area.cy))
+        {
+            continue;
+        }
+
+        int skillSlotIndex = FindSkillSlotIndex(pIcon->skillId);
+        if (skillSlotIndex == -1)
+        {
+            return;
+        }
+
+        m_bRenderSkillInfo = true;
+        m_iRenderSkillInfoType = skillSlotIndex;
+        m_iRenderSkillInfoPosX = pIcon->location.x;
+        m_iRenderSkillInfoPosY = pIcon->location.y;
+        return;
+    }
+}
+
+int CNewUIMuHelperSkillList::FindSkillSlotIndex(int iSkillType) const
+{
+    return FindCharacterSkillSlotIndex(iSkillType);
 }
 
 bool CNewUIMuHelperSkillList::UpdateKeyEvent()

@@ -155,6 +155,7 @@ namespace SEASON3B
         void InsertIcon(int imgindex, int x, int y, int sx, int sy, int Identifier, int iNumTab);
         //--
         void RenderTextList();
+        void RenderSelectedSkillInfo();
         void RegisterTextCharacter(BYTE class_character, int Identifier);
         void RegisterText(int Identifier, cTextName button);
         void InsertText(int x, int y,std::wstring Name, int Identifier, int iNumTab);
@@ -199,6 +200,10 @@ namespace SEASON3B
         int m_iCurrentOpenTab;
         int m_iCurrentOpenSubWin;
         bool m_bSubWinOpen;
+        bool m_bRenderSkillInfo;
+        int m_iRenderSkillInfoType;
+        int m_iRenderSkillInfoPosX;
+        int m_iRenderSkillInfoPosY;
         cButtonMap m_ButtonList;
         cCheckBoxMap m_CheckBoxList;
         cTextNameMap m_TextNameList;
@@ -269,6 +274,8 @@ namespace SEASON3B
 
         void PrepareSkillsToRender();
         void RenderSkillIcon(int iIndex, float x, float y, float width, float height);
+        void UpdateHoveredSkillInfo();
+        int FindSkillSlotIndex(int iSkillType) const;
 
         bool IsAttackSkill(int iSkillType);
         bool IsBuffSkill(int iSkillType);

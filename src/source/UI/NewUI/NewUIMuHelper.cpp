@@ -1934,7 +1934,23 @@ void CNewUIMuHelperSkillList::PrepareSkillsToRender()
             {
                 BYTE bySkillUseType = SkillAttribute[iSkillType].SkillUseType;
 
-                if (bySkillUseType == SKILL_USE_TYPE_MASTER || bySkillUseType == SKILL_USE_TYPE_MASTERLEVEL)
+                // Allow known Summoner active skills through even when flagged as master-type,
+                // because the game data marks them as master skills but they are actively usable.
+                const bool isSummonerActiveSkill =
+                    iSkillType == AT_SKILL_ALICE_DRAINLIFE      ||
+                    iSkillType == AT_SKILL_ALICE_DRAINLIFE_STR  ||
+                    iSkillType == AT_SKILL_ALICE_CHAINLIGHTNING ||
+                    iSkillType == AT_SKILL_ALICE_CHAINLIGHTNING_STR ||
+                    iSkillType == AT_SKILL_ALICE_LIGHTNINGORB   ||
+                    iSkillType == AT_SKILL_ALICE_BLIND          ||
+                    iSkillType == AT_SKILL_ALICE_WEAKNESS       ||
+                    iSkillType == AT_SKILL_ALICE_ENERVATION     ||
+                    iSkillType == AT_SKILL_ALICE_BERSERKER      ||
+                    iSkillType == AT_SKILL_ALICE_BERSERKER_STR  ||
+                    iSkillType == AT_SKILL_ALICE_THORNS;
+
+                if (!isSummonerActiveSkill &&
+                    (bySkillUseType == SKILL_USE_TYPE_MASTER || bySkillUseType == SKILL_USE_TYPE_MASTERLEVEL))
                 {
                     continue;
                 }

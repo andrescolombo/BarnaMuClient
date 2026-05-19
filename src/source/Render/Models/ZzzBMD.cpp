@@ -18,6 +18,8 @@
 #include "Engine/Physics/PhysicsManager.h"
 #include "UI/NewUI/NewUISystem.h"
 
+#include <intrin.h>
+
 BMD* Models;
 BMD* ModelsDump;
 
@@ -42,6 +44,34 @@ float ParentMatrix[3][4];
 
 static vec3_t LightVector = { 0.f, -0.1f, -0.8f };
 static vec3_t LightVector2 = { 0.f, -0.5f, -0.8f };
+
+namespace
+{
+    void ReportInvalidObjectBone(const BMD& model, const OBJECT* object, int boneNumber, const void* caller)
+    {
+#ifdef _DEBUG
+        char message[256] = {};
+        sprintf_s(
+            message,
+            "[BMD] Invalid object bone: requested=%d, numBones=%d, model='%.32s', objectType=%d, objectKind=%d, caller=%p\n",
+            boneNumber,
+            model.NumBones,
+            model.Name,
+            object != nullptr ? object->Type : -1,
+            object != nullptr ? object->Kind : -1,
+            caller);
+        OutputDebugStringA(message);
+        g_ErrorReport.Write(
+            L"[BMD] Invalid object bone: requested=%d, numBones=%d, model='%S', objectType=%d, objectKind=%d, caller=%p\r\n",
+            boneNumber,
+            model.NumBones,
+            model.Name,
+            object != nullptr ? object->Type : -1,
+            object != nullptr ? object->Kind : -1,
+            caller);
+#endif
+    }
+}
 
 void BMD::Animation(float(*BoneMatrix)[3][4], float AnimationFrame, float PriorFrame, unsigned short PriorAction, vec3_t Angle, vec3_t HeadAngle, bool Parent, bool Translate)
 {
@@ -288,6 +318,7 @@ void BMD::TransformByObjectBone(vec3_t vResultPosition, OBJECT* pObject, int iBo
 {
     if (iBoneNumber < 0 || iBoneNumber >= NumBones)
     {
+        ReportInvalidObjectBone(*this, pObject, iBoneNumber, _ReturnAddress());
         assert(!"Bone number error");
         return;
     }

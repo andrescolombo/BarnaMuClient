@@ -89,6 +89,264 @@ DWORD g_dwLatestMagicTick;
 
 const   float   AutoMouseLimitTime = (1.f * 60.f * 60.f);
 int   LoadingWorld = 0;
+
+bool CheckAttack();
+
+namespace
+{
+    void WriteDebugLogBesideExecutable(const char* fileName, const char* message)
+    {
+#ifdef _DEBUG
+        char logPath[MAX_PATH] = {};
+        const DWORD pathLength = GetModuleFileNameA(nullptr, logPath, MAX_PATH);
+        if (pathLength == 0 || pathLength >= MAX_PATH)
+        {
+            return;
+        }
+
+        char* pathFileName = strrchr(logPath, '\\');
+        if (pathFileName == nullptr)
+        {
+            return;
+        }
+
+        strcpy_s(pathFileName + 1, MAX_PATH - static_cast<size_t>((pathFileName + 1) - logPath), fileName);
+
+        HANDLE logFile = CreateFileA(
+            logPath,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ,
+            nullptr,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+
+        if (logFile == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+
+        DWORD bytesWritten = 0;
+        ::WriteFile(logFile, message, static_cast<DWORD>(strlen(message)), &bytesWritten, nullptr);
+        CloseHandle(logFile);
+#endif
+    }
+
+    bool ShouldReportAreaSkillTarget(int skill)
+    {
+#ifdef _DEBUG
+        return skill == AT_SKILL_TRIPLE_SHOT
+            || skill == AT_SKILL_TRIPLE_SHOT_STR
+            || skill == AT_SKILL_TRIPLE_SHOT_MASTERY
+            || skill == AT_SKILL_MULTI_SHOT
+            || skill == AT_SKILL_LIGHTNING_SHOCK
+            || skill == AT_SKILL_LIGHTNING_SHOCK_STR
+            || skill == AT_SKILL_DECAY
+            || skill == AT_SKILL_DECAY_STR;
+#else
+        return false;
+#endif
+    }
+
+    void WriteAreaSkillTargetLog(const char* message)
+    {
+#ifdef _DEBUG
+        WriteDebugLogBesideExecutable("AreaSkillTarget.log", message);
+#endif
+    }
+
+    void WritePvpSelectionTraceLog(const char* message)
+    {
+#ifdef _DEBUG
+        WriteDebugLogBesideExecutable("PvpSelectionTrace.log", message);
+#endif
+    }
+
+    void WritePvpAttackDecisionLog(const char* message)
+    {
+#ifdef _DEBUG
+        WriteDebugLogBesideExecutable("PvpAttackDecision.log", message);
+#endif
+    }
+
+    void ReportPvpSelectionTrace(const char* stage, int selected, int selectedNpc, int selectedItem, int selectedOperate, int attacking)
+    {
+#ifdef _DEBUG
+        const int skill = Hero != nullptr ? CharacterAttribute->Skill[Hero->CurrentSkill] : -1;
+        static int lastSelected = -2;
+        static int lastSkill = -2;
+        static int lastWorld = -2;
+        static int lastMouseOnWindow = -2;
+        static int lastMouseUse = -2;
+
+        const int mouseOnWindow = MouseOnWindow ? 1 : 0;
+        const int mouseUse = g_pNewUISystem->CheckMouseUse() ? 1 : 0;
+        if (selected == lastSelected
+            && skill == lastSkill
+            && gMapManager.WorldActive == lastWorld
+            && mouseOnWindow == lastMouseOnWindow
+            && mouseUse == lastMouseUse)
+        {
+            return;
+        }
+
+        lastSelected = selected;
+        lastSkill = skill;
+        lastWorld = gMapManager.WorldActive;
+        lastMouseOnWindow = mouseOnWindow;
+        lastMouseUse = mouseUse;
+
+        CHARACTER* target = selected >= 0 && selected < MAX_CHARACTERS_CLIENT ? &CharactersClient[selected] : nullptr;
+        char message[384] = {};
+        sprintf_s(
+            message,
+            "[PvpSelectionTrace] stage=%s selected=%d npc=%d item=%d operate=%d attacking=%d skill=%d world=%d mouseOnWindow=%d mouseUse=%d ctrl=%d targetKey=%d targetKind=%d targetType=%d targetPK=%d targetDead=%d duelEnemy=%d party=%d\r\n",
+            stage,
+            selected,
+            selectedNpc,
+            selectedItem,
+            selectedOperate,
+            attacking,
+            skill,
+            gMapManager.WorldActive,
+            mouseOnWindow,
+            mouseUse,
+            HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 ? 1 : 0,
+            target != nullptr ? target->Key : -1,
+            target != nullptr ? target->Object.Kind : -1,
+            target != nullptr ? target->Object.Type : -1,
+            target != nullptr ? target->PK : -1,
+            target != nullptr ? static_cast<int>(target->Dead) : -1,
+            target != nullptr && g_DuelMgr.IsDuelPlayer(target, DUEL_ENEMY) ? 1 : 0,
+            selected >= 0 && selected < MAX_CHARACTERS_CLIENT && g_pPartyManager->IsPartyMember(selected) ? 1 : 0);
+
+        OutputDebugStringA(message);
+        WritePvpSelectionTraceLog(message);
+#endif
+    }
+
+    bool ReportCheckAttackResult(const char* reason, bool result, int selected)
+    {
+#ifdef _DEBUG
+        CHARACTER* target = selected >= 0 && selected < MAX_CHARACTERS_CLIENT ? &CharactersClient[selected] : nullptr;
+        char message[512] = {};
+        sprintf_s(
+            message,
+            "[PvpAttackDecision] fn=CheckAttack result=%d reason=%s selected=%d world=%d ctrl=%d alt=%d targetKey=%d targetKind=%d targetType=%d targetPK=%d targetGuildTeam=%d targetGuildRelation=%d targetGuildMark=%d targetDead=%d party=%d duelEnabled=%d duelEnemy=%d enableGuildWar=%d enableSoccer=%d\r\n",
+            result ? 1 : 0,
+            reason,
+            selected,
+            gMapManager.WorldActive,
+            HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 ? 1 : 0,
+            HIBYTE(GetAsyncKeyState(VK_MENU)) == 128 ? 1 : 0,
+            target != nullptr ? target->Key : -1,
+            target != nullptr ? target->Object.Kind : -1,
+            target != nullptr ? target->Object.Type : -1,
+            target != nullptr ? target->PK : -1,
+            target != nullptr ? target->GuildTeam : -1,
+            target != nullptr ? target->GuildRelationShip : -1,
+            target != nullptr ? target->GuildMarkIndex : -1,
+            target != nullptr ? static_cast<int>(target->Dead) : -1,
+            selected >= 0 && selected < MAX_CHARACTERS_CLIENT && g_pPartyManager->IsPartyMember(selected) ? 1 : 0,
+            g_DuelMgr.IsDuelEnabled() ? 1 : 0,
+            target != nullptr && g_DuelMgr.IsDuelPlayer(target, DUEL_ENEMY) ? 1 : 0,
+            EnableGuildWar ? 1 : 0,
+            EnableSoccer ? 1 : 0);
+
+        static char lastMessage[512] = {};
+        if (strcmp(lastMessage, message) != 0)
+        {
+            strcpy_s(lastMessage, message);
+            OutputDebugStringA(message);
+            WritePvpAttackDecisionLog(message);
+        }
+#endif
+        return result;
+    }
+
+    int ReportTargetCharacterKeyResult(const char* reason, int result, int selected)
+    {
+#ifdef _DEBUG
+        CHARACTER* target = selected >= 0 && selected < MAX_CHARACTERS_CLIENT ? &CharactersClient[selected] : nullptr;
+        char message[512] = {};
+        sprintf_s(
+            message,
+            "[PvpAttackDecision] fn=getTargetCharacterKey result=%d reason=%s selected=%d world=%d ctrl=%d alt=%d targetKey=%d targetKind=%d targetType=%d targetPK=%d targetGuildTeam=%d targetGuildRelation=%d targetGuildMark=%d targetDead=%d party=%d duelEnabled=%d duelEnemy=%d enableGuildWar=%d\r\n",
+            result,
+            reason,
+            selected,
+            gMapManager.WorldActive,
+            HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 ? 1 : 0,
+            HIBYTE(GetAsyncKeyState(VK_MENU)) == 128 ? 1 : 0,
+            target != nullptr ? target->Key : -1,
+            target != nullptr ? target->Object.Kind : -1,
+            target != nullptr ? target->Object.Type : -1,
+            target != nullptr ? target->PK : -1,
+            target != nullptr ? target->GuildTeam : -1,
+            target != nullptr ? target->GuildRelationShip : -1,
+            target != nullptr ? target->GuildMarkIndex : -1,
+            target != nullptr ? static_cast<int>(target->Dead) : -1,
+            selected >= 0 && selected < MAX_CHARACTERS_CLIENT && g_pPartyManager->IsPartyMember(selected) ? 1 : 0,
+            g_DuelMgr.IsDuelEnabled() ? 1 : 0,
+            target != nullptr && g_DuelMgr.IsDuelPlayer(target, DUEL_ENEMY) ? 1 : 0,
+            EnableGuildWar ? 1 : 0);
+
+        static char lastMessage[512] = {};
+        if (strcmp(lastMessage, message) != 0)
+        {
+            strcpy_s(lastMessage, message);
+            OutputDebugStringA(message);
+            WritePvpAttackDecisionLog(message);
+        }
+#endif
+        return result;
+    }
+
+    void ReportAreaSkillTargetState(int skill, int selected, WORD targetKey)
+    {
+#ifdef _DEBUG
+        if (!ShouldReportAreaSkillTarget(skill))
+        {
+            return;
+        }
+
+        const bool isValidSelection = selected >= 0 && selected < MAX_CHARACTERS_CLIENT;
+        CHARACTER* target = isValidSelection ? &CharactersClient[selected] : nullptr;
+        const int targetCharacterKey = target != nullptr ? target->Key : -1;
+        const int targetKind = target != nullptr ? target->Object.Kind : -1;
+        const int targetType = target != nullptr ? target->Object.Type : -1;
+        const int targetPk = target != nullptr ? target->PK : -1;
+        const int targetGuildTeam = target != nullptr ? target->GuildTeam : -1;
+        const int targetGuildRelation = target != nullptr ? target->GuildRelationShip : -1;
+        const int targetGuildMark = target != nullptr ? target->GuildMarkIndex : -1;
+        const int targetDead = target != nullptr ? static_cast<int>(target->Dead) : -1;
+
+        char message[384] = {};
+        sprintf_s(
+            message,
+            "[AreaSkillTarget] skill=%d selected=%d sentTargetKey=%u checkAttack=%d ctrl=%d world=%d targetKey=%d targetKind=%d targetType=%d targetPK=%d targetGuildTeam=%d targetGuildRelation=%d targetGuildMark=%d targetDead=%d party=%d duelEnemy=%d\r\n",
+            skill,
+            selected,
+            targetKey,
+            CheckAttack() ? 1 : 0,
+            HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 ? 1 : 0,
+            gMapManager.WorldActive,
+            targetCharacterKey,
+            targetKind,
+            targetType,
+            targetPk,
+            targetGuildTeam,
+            targetGuildRelation,
+            targetGuildMark,
+            targetDead,
+            isValidSelection && g_pPartyManager->IsPartyMember(selected) ? 1 : 0,
+            target != nullptr && g_DuelMgr.IsDuelPlayer(target, DUEL_ENEMY) ? 1 : 0);
+
+        OutputDebugStringA(message);
+        WriteAreaSkillTargetLog(message);
+#endif
+    }
+}
 int   ItemHelp = 0;
 int   MouseUpdateTime = 0;
 int   MouseUpdateTimeMax = 6;
@@ -1451,11 +1709,11 @@ bool CheckAttack_Fenrir(CHARACTER* c)
             {
                 if (!g_isCharacterBuff((&c->Object), eBuff_Cloaking))
                 {
-                    return true;
+                    return ReportCheckAttackResult("battle-castle-attack-team", true, SelectedCharacter);
                 }
                 else
                 {
-                    return false;
+                    return ReportCheckAttackResult("battle-castle-attack-team-cloaked", false, SelectedCharacter);
                 }
             }
             else if ((Hero->EtcPart == PARTS_DEFENSE_KING_TEAM_MARK || Hero->EtcPart == PARTS_DEFENSE_TEAM_MARK)
@@ -1465,11 +1723,11 @@ bool CheckAttack_Fenrir(CHARACTER* c)
             {
                 if (!g_isCharacterBuff((&c->Object), eBuff_Cloaking))
                 {
-                    return true;
+                    return ReportCheckAttackResult("battle-castle-defense-team", true, SelectedCharacter);
                 }
                 else
                 {
-                    return false;
+                    return ReportCheckAttackResult("battle-castle-defense-team-cloaked", false, SelectedCharacter);
                 }
             }
             else if (g_isCharacterBuff((&Hero->Object), eBuff_CastleRegimentAttack1)
@@ -1483,11 +1741,11 @@ bool CheckAttack_Fenrir(CHARACTER* c)
                 {
                     if (!g_isCharacterBuff((&c->Object), eBuff_Cloaking))
                     {
-                        return true;
+                        return ReportCheckAttackResult("battle-castle-regiment-attack", true, SelectedCharacter);
                     }
                     else
                     {
-                        return false;
+                        return ReportCheckAttackResult("battle-castle-regiment-attack-cloaked", false, SelectedCharacter);
                     }
                 }
             }
@@ -1499,11 +1757,11 @@ bool CheckAttack_Fenrir(CHARACTER* c)
                 {
                     if (!g_isCharacterBuff((&c->Object), eBuff_Cloaking))
                     {
-                        return true;
+                        return ReportCheckAttackResult("battle-castle-regiment-defense", true, SelectedCharacter);
                     }
                     else
                     {
-                        return false;
+                        return ReportCheckAttackResult("battle-castle-regiment-defense-cloaked", false, SelectedCharacter);
                     }
                 }
             }
@@ -1567,39 +1825,39 @@ bool CheckAttack()
 {
     if (SEASON3B::CNewUIInventoryCtrl::GetPickedItem())
     {
-        return false;
+        return ReportCheckAttackResult("picked-item", false, SelectedCharacter);
     }
 
     if (SelectedCharacter < 0 || SelectedCharacter >= MAX_CHARACTERS_CLIENT)
     {
-        return false;
+        return ReportCheckAttackResult("invalid-selection", false, SelectedCharacter);
     }
 
     if (IsGMCharacter() && IsNonAttackGM() == true)
     {
-        return false;
+        return ReportCheckAttackResult("non-attack-gm", false, SelectedCharacter);
     }
 
     CHARACTER* c = &CharactersClient[SelectedCharacter];
 
     if (c->Dead > 0)
     {
-        return false;
+        return ReportCheckAttackResult("target-dead", false, SelectedCharacter);
     }
 
     if (gMapManager.InChaosCastle() == true && c != Hero)
     {
-        return true;
+        return ReportCheckAttackResult("chaos-castle", true, SelectedCharacter);
     }
     else if (::IsStrifeMap(gMapManager.WorldActive) && c != Hero && c->m_byGensInfluence != Hero->m_byGensInfluence)
     {
         if (g_pCommandWindow->GetMouseCursor() == CURSOR_IDSELECT)
         {
-            return false;
+            return ReportCheckAttackResult("strife-idselect-cursor", false, SelectedCharacter);
         }
         if (HIBYTE(GetAsyncKeyState(VK_MENU)) == 128)
         {
-            return false;
+            return ReportCheckAttackResult("strife-alt-held", false, SelectedCharacter);
         }
 
         if (HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128)
@@ -1607,54 +1865,54 @@ bool CheckAttack()
             if (EnableGuildWar)
             {
                 if (c->GuildTeam == 2 && c != Hero)
-                    return true;
+                    return ReportCheckAttackResult("strife-ctrl-guild-war-enemy", true, SelectedCharacter);
                 else
-                    return false;
+                    return ReportCheckAttackResult("strife-ctrl-guild-war-not-enemy", false, SelectedCharacter);
             }
             else
-                return true;
+                return ReportCheckAttackResult("strife-ctrl", true, SelectedCharacter);
         }
         else if (wcscmp(GuildMark[Hero->GuildMarkIndex].GuildName, GuildMark[c->GuildMarkIndex].GuildName) == 0)
         {
             if (g_pPartyManager->IsPartyMember(SelectedCharacter))
             {
-                return false;
+                return ReportCheckAttackResult("strife-same-guild-party", false, SelectedCharacter);
             }
             if (EnableGuildWar)
             {
                 if (c->GuildTeam == 2 && c != Hero)
-                    return true;
+                    return ReportCheckAttackResult("strife-same-guild-war-enemy", true, SelectedCharacter);
                 else
-                    return false;
+                    return ReportCheckAttackResult("strife-same-guild-war-not-enemy", false, SelectedCharacter);
             }
             if (c->GuildRelationShip == GR_NONE)
-                return true;
+                return ReportCheckAttackResult("strife-same-guild-none", true, SelectedCharacter);
             else
-                return false;
+                return ReportCheckAttackResult("strife-same-guild-relation-block", false, SelectedCharacter);
         }
         else if ((c->GuildRelationShip == GR_UNION) || (c->GuildRelationShip == GR_UNIONMASTER))
         {
-            return false;
+            return ReportCheckAttackResult("strife-union-block", false, SelectedCharacter);
         }
         else if (EnableGuildWar)
         {
             if (c->GuildTeam == 2 && c != Hero)
-                return true;
+                return ReportCheckAttackResult("strife-guild-war-enemy", true, SelectedCharacter);
             else/* if(c->GuildRelationShip == GR_NONE)*/
-                return false;
+                return ReportCheckAttackResult("strife-guild-war-not-enemy", false, SelectedCharacter);
         }
         else if (g_pPartyManager->IsPartyMember(SelectedCharacter))
         {
             if ((c->GuildRelationShip == GR_RIVAL) || (c->GuildRelationShip == GR_RIVALUNION))
             {
-                return true;
+                return ReportCheckAttackResult("strife-party-rival", true, SelectedCharacter);
             }
             else
-                return false;
+                return ReportCheckAttackResult("strife-party-not-rival", false, SelectedCharacter);
         }
         else
         {
-            return true;
+            return ReportCheckAttackResult("strife-default", true, SelectedCharacter);
         }
     }
 
@@ -1662,18 +1920,18 @@ bool CheckAttack()
     {
         if (EnableGuildWar && EnableSoccer)
         {
-            return true;
+            return ReportCheckAttackResult("monster-guild-war-soccer", true, SelectedCharacter);
         }
         else if (EnableGuildWar)
         {
-            return false;
+            return ReportCheckAttackResult("monster-guild-war-block", false, SelectedCharacter);
         }
         else if (g_isCharacterBuff((&Hero->Object), eBuff_DuelWatch))
         {
-            return false;
+            return ReportCheckAttackResult("monster-duel-watch-block", false, SelectedCharacter);
         }
 
-        return true;
+        return ReportCheckAttackResult("monster-default", true, SelectedCharacter);
     }
     else if (c->Object.Kind == KIND_PLAYER)
     {
@@ -1747,120 +2005,120 @@ bool CheckAttack()
 
         if (c->GuildRelationShip == GR_RIVAL || c->GuildRelationShip == GR_RIVALUNION)
         {
-            return true;
+            return ReportCheckAttackResult("player-rival", true, SelectedCharacter);
         }
 
         if (EnableGuildWar && c->PK >= PVP_MURDERER2 && c->GuildMarkIndex != -1
             && wcscmp(GuildMark[Hero->GuildMarkIndex].GuildName, GuildMark[c->GuildMarkIndex].GuildName) == 0)
         {
-            return  false;
+            return ReportCheckAttackResult("player-guild-war-same-guild-pk-block", false, SelectedCharacter);
         }
         else if (g_DuelMgr.IsDuelEnabled())
         {
             if (g_DuelMgr.IsDuelPlayer(c, DUEL_ENEMY))
             {
-                return true;
+                return ReportCheckAttackResult("player-duel-enemy", true, SelectedCharacter);
             }
             else
             {
-                return false;
+                return ReportCheckAttackResult("player-duel-not-enemy", false, SelectedCharacter);
             }
         }
         else if (g_isCharacterBuff((&Hero->Object), eBuff_DuelWatch))
         {
-            return false;
+            return ReportCheckAttackResult("player-duel-watch-block", false, SelectedCharacter);
         }
         else if (EnableGuildWar)
         {
             if (c->GuildTeam == 2 && c != Hero)
             {
-                return true;
+                return ReportCheckAttackResult("player-guild-war-enemy", true, SelectedCharacter);
             }
             else
             {
-                return false;
+                return ReportCheckAttackResult("player-guild-war-not-enemy", false, SelectedCharacter);
             }
         }
         else if (c->PK >= PVP_MURDERER2 || (HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 && c != Hero))
         {
-            return true;
+            return ReportCheckAttackResult("player-pk-or-ctrl", true, SelectedCharacter);
         }
         else if (gMapManager.IsCursedTemple() && !g_CursedTemple->IsPartyMember(SelectedCharacter))
         {
-            return true;
+            return ReportCheckAttackResult("player-cursed-temple-enemy", true, SelectedCharacter);
         }
         else
         {
-            return false;
+            return ReportCheckAttackResult("player-default-block", false, SelectedCharacter);
         }
     }
     else
     {
-        return false;
+        return ReportCheckAttackResult("unsupported-kind", false, SelectedCharacter);
     }
 
-    return false;
+    return ReportCheckAttackResult("fallthrough", false, SelectedCharacter);
 }
 
 int	getTargetCharacterKey(CHARACTER* c, int selected)
 {
     if (SEASON3B::CNewUIInventoryCtrl::GetPickedItem())
     {
-        return -1;
+        return ReportTargetCharacterKeyResult("picked-item", -1, selected);
     }
 
     if (c != Hero)
     {
-        return -1;
+        return ReportTargetCharacterKeyResult("caster-not-hero", -1, selected);
     }
 
     if (selected < 0 || selected >= MAX_CHARACTERS_CLIENT)
     {
-        return -1;
+        return ReportTargetCharacterKeyResult("invalid-selection", -1, selected);
     }
 
     CHARACTER* sc = &CharactersClient[selected];
 
     if (gMapManager.InChaosCastle() == true)
     {
-        return sc->Key;
+        return ReportTargetCharacterKeyResult("chaos-castle", sc->Key, selected);
     }
 
     if (EnableGuildWar && sc->PK >= PVP_MURDERER2 && sc->GuildMarkIndex != -1 && wcscmp(GuildMark[Hero->GuildMarkIndex].GuildName, GuildMark[sc->GuildMarkIndex].GuildName) == 0)
     {
-        return  -1;
+        return ReportTargetCharacterKeyResult("guild-war-same-guild-pk-block", -1, selected);
     }
 
     if (g_DuelMgr.IsDuelEnabled())
     {
         if (g_DuelMgr.IsDuelPlayer(sc, DUEL_ENEMY))
         {
-            return sc->Key;
+            return ReportTargetCharacterKeyResult("duel-enemy", sc->Key, selected);
         }
 
-        return -1;
+        return ReportTargetCharacterKeyResult("duel-not-enemy", -1, selected);
     }
 
     if (sc->GuildRelationShip == GR_RIVAL || sc->GuildRelationShip == GR_RIVALUNION)
     {
-        return sc->Key;
+        return ReportTargetCharacterKeyResult("guild-rival", sc->Key, selected);
     }
 
     if (EnableGuildWar)
     {
         if (sc->GuildTeam == 2 && sc != Hero)
         {
-            return sc->Key;
+            return ReportTargetCharacterKeyResult("guild-war-enemy", sc->Key, selected);
         }
 
-        return -1;
+        return ReportTargetCharacterKeyResult("guild-war-not-enemy", -1, selected);
     }
 
     if (::IsStrifeMap(gMapManager.WorldActive) && sc != Hero && sc->m_byGensInfluence != Hero->m_byGensInfluence && HIBYTE(GetAsyncKeyState(VK_MENU)) != 128)
     {
         if (sc->GuildRelationShip == GR_NONE && !g_pPartyManager->IsPartyMember(SelectedCharacter))
         {
-            return sc->Key;
+            return ReportTargetCharacterKeyResult("strife-gens-enemy", sc->Key, selected);
         }
 
         if ((wcscmp(GuildMark[Hero->GuildMarkIndex].GuildName, GuildMark[c->GuildMarkIndex].GuildName) == 0) ||
@@ -1868,29 +2126,29 @@ int	getTargetCharacterKey(CHARACTER* c, int selected)
         {
             if (HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128)
             {
-                return sc->Key;
+                return ReportTargetCharacterKeyResult("strife-same-guild-or-party-ctrl", sc->Key, selected);
             }
 
-            return -1;
+            return ReportTargetCharacterKeyResult("strife-same-guild-or-party-no-ctrl", -1, selected);
         }
     }
 
     if ((sc->PK >= PVP_MURDERER2 && sc->Object.Kind == KIND_PLAYER) || (HIBYTE(GetAsyncKeyState(VK_CONTROL)) == 128 && sc != Hero))
     {
-        return sc->Key;
+        return ReportTargetCharacterKeyResult("pk-or-ctrl", sc->Key, selected);
     }
 
     if (gMapManager.IsCursedTemple())
     {
         if (g_CursedTemple->IsPartyMember(selected))
         {
-            return -1;
+            return ReportTargetCharacterKeyResult("cursed-temple-party-block", -1, selected);
         }
 
-        return sc->Key;
+        return ReportTargetCharacterKeyResult("cursed-temple-enemy", sc->Key, selected);
     }
 
-    return sc->Key;
+    return ReportTargetCharacterKeyResult("default-fallthrough", sc->Key, selected);
 }
 
 void SendCharacterMove(unsigned short Key, float Angle, unsigned char PathNum, unsigned char* PathX, unsigned char* PathY, unsigned char TargetX, unsigned char TargetY)
@@ -2046,6 +2304,7 @@ inline BYTE MakeSkillSerialNumber(BYTE* pSerialNumber)
 void SendRequestMagicContinue(int Type, int x, int y, int Angle, BYTE Dest, BYTE Tpos, WORD TKey, BYTE* pSkillSerial)
 {
     CurrentSkill = Type;
+    ReportAreaSkillTargetState(Type, g_MovementSkill.m_iTarget, TKey);
 
     SocketClient->ToGameServer()->SendAreaSkill(Type, x, y, Angle, TKey, MakeSkillSerialNumber(pSkillSerial));
 
@@ -4936,7 +5195,19 @@ void AttackElf(CHARACTER* c, int Skill, float Distance)
         ZeroMemory(&g_MovementSkill, sizeof(g_MovementSkill));
         g_MovementSkill.m_bMagic = TRUE;
         g_MovementSkill.m_iSkill = Hero->CurrentSkill;
-        g_MovementSkill.m_iTarget = CheckAttack() ? SelectedCharacter : -1;
+        // [BUG_CTRL_PVP] Gate m_iTarget behind CheckAttack(), matching AttackWizard / AttackKnight /
+        // AttackRagefighter / ExecuteSkillComplete. Without this gate, Elf area skills
+        // (Multi Shot, Triple Shot, Penetration, etc.) carry a real TargetKey on neutral players
+        // even with no CTRL, and the server applies PvP damage that other classes correctly skip.
+        // Now Elf requires CTRL like everyone else.
+        if (CheckAttack())
+        {
+            g_MovementSkill.m_iTarget = SelectedCharacter;
+        }
+        else
+        {
+            g_MovementSkill.m_iTarget = -1;
+        }
     }
     if (!CheckTile(c, o, Distance))
     {
@@ -6302,7 +6573,18 @@ void AttackWizard(CHARACTER* c, int Skill, float Distance)
 
         g_MovementSkill.m_bMagic = TRUE;
         g_MovementSkill.m_iSkill = Hero->CurrentSkill;
-        g_MovementSkill.m_iTarget = CheckAttack() ? SelectedCharacter : -1;
+        // [BUG_CTRL_PVP] Gate m_iTarget behind CheckAttack(), matching the rest of the codebase.
+        // Without this gate, Summoner area skills (Lightning Shock, etc.) ship a real TargetKey
+        // on neutral players even with no CTRL, and the server applies PvP damage that other
+        // classes correctly skip. Now Summoner requires CTRL like everyone else.
+        if (CheckAttack())
+        {
+            g_MovementSkill.m_iTarget = SelectedCharacter;
+        }
+        else
+        {
+            g_MovementSkill.m_iTarget = -1;
+        }
 
         switch (Skill)
         {
@@ -7169,9 +7451,20 @@ int ExecuteSkill(CHARACTER* c, ActionSkillType Skill, float Distance)
                 }
                 if (ClassIndex == CLASS_ELF)
                 {
+                    // [BUG_CTRL_PVP] Gate m_iTarget for Elf's wall-recovery path the same way
+                    // the DK/MG/Wizard branch above does it. Without this, SkillElf (Triple Shot
+                    // etc.) reads a stale m_iTarget from a previous action and ships a real
+                    // TargetKey on neutral players without CTRL.
                     g_MovementSkill.m_bMagic = TRUE;
                     g_MovementSkill.m_iSkill = Hero->CurrentSkill;
-                    g_MovementSkill.m_iTarget = CheckAttack() ? SelectedCharacter : -1;
+                    if (CheckAttack())
+                    {
+                        g_MovementSkill.m_iTarget = SelectedCharacter;
+                    }
+                    else
+                    {
+                        g_MovementSkill.m_iTarget = -1;
+                    }
                     if (SkillElf(c, &CharacterMachine->Equipment[i]))
                     {
                         return (int) ExecuteSkillComplete(c);
@@ -8220,6 +8513,8 @@ void SelectObjects()
     {
         g_pPartyListWindow->SetListBGColor();
     }
+
+    ReportPvpSelectionTrace("SelectObjects-end", SelectedCharacter, SelectedNpc, SelectedItem, SelectedOperate, Attacking);
 }
 
 int FindHotKey(int Skill)

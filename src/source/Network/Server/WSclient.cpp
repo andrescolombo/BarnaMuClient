@@ -63,6 +63,7 @@
 #include "GameLogic/Combat/DuelMgr.h"
 
 #include "GameLogic/Social/GambleSystem.h"
+#include "GameLogic/Social/PartyManager.h"
 #include "GameLogic/Quests/QuestMng.h"
 #include "Scenes/SceneCommon.h"
 #ifdef PBG_ADD_SECRETBUFF
@@ -90,6 +91,77 @@ extern CUITextInputBox* g_pSingleTextInputBox;
 #ifdef _PVP_ADD_MOVE_SCROLL
 extern CMurdererMove g_MurdererMove;
 #endif	// _PVP_ADD_MOVE_SCROLL
+
+namespace
+{
+    void WritePvpViewportStateLog(const char* message)
+    {
+#ifdef _DEBUG
+        char logPath[MAX_PATH] = {};
+        const DWORD pathLength = GetModuleFileNameA(nullptr, logPath, MAX_PATH);
+        if (pathLength == 0 || pathLength >= MAX_PATH)
+        {
+            return;
+        }
+
+        char* fileName = strrchr(logPath, '\\');
+        if (fileName == nullptr)
+        {
+            return;
+        }
+
+        strcpy_s(fileName + 1, MAX_PATH - static_cast<size_t>((fileName + 1) - logPath), "PvpViewportState.log");
+
+        HANDLE logFile = CreateFileA(
+            logPath,
+            FILE_APPEND_DATA,
+            FILE_SHARE_READ,
+            nullptr,
+            OPEN_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+
+        if (logFile == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+
+        DWORD bytesWritten = 0;
+        ::WriteFile(logFile, message, static_cast<DWORD>(strlen(message)), &bytesWritten, nullptr);
+        CloseHandle(logFile);
+#endif
+    }
+
+    void ReportPvpViewportState(const char* eventName, int key, int index, CHARACTER* character)
+    {
+#ifdef _DEBUG
+        char message[384] = {};
+        sprintf_s(
+            message,
+            "[PvpViewportState] event=%s key=%d index=%d isHero=%d world=%d pk=%d guildTeam=%d guildRelation=%d guildStatus=%d guildType=%d guildMark=%d gens=%d dead=%d objectKind=%d objectType=%d party=%d duelEnemy=%d\r\n",
+            eventName,
+            key,
+            index,
+            character == Hero ? 1 : 0,
+            gMapManager.WorldActive,
+            character != nullptr ? character->PK : -1,
+            character != nullptr ? character->GuildTeam : -1,
+            character != nullptr ? character->GuildRelationShip : -1,
+            character != nullptr ? character->GuildStatus : -1,
+            character != nullptr ? character->GuildType : -1,
+            character != nullptr ? character->GuildMarkIndex : -1,
+            character != nullptr ? character->m_byGensInfluence : -1,
+            character != nullptr ? static_cast<int>(character->Dead) : -1,
+            character != nullptr ? character->Object.Kind : -1,
+            character != nullptr ? character->Object.Type : -1,
+            index >= 0 && index < MAX_CHARACTERS_CLIENT && g_pPartyManager->IsPartyMember(index) ? 1 : 0,
+            character != nullptr && g_DuelMgr.IsDuelPlayer(character, DUEL_ENEMY) ? 1 : 0);
+
+        OutputDebugStringA(message);
+        WritePvpViewportStateLog(message);
+#endif
+    }
+}
 
 extern  short   g_shCameraLevel;
 
@@ -2482,22 +2554,50 @@ void ReceiveCreatePlayerViewportExtended(std::span<const BYTE> ReceiveBuffer)
     int CreateFlag = (Key >> 15);
     Key &= 0x7FFF;
 
-    
+    // [BUG_CTRL_PVP] Safe-restore for PvP/social state wiped by CreateCharacterPointer.
+    // CreateCharacter() -> CreateCharacterPointer() unconditionally resets the guild/Gens/
+    // admin fields below. If a GuildIDViewport / Gens packet arrived BEFORE the viewport-
+    // create (common after relog or character switch on the OpenMU server), the populated
+    // state would be wiped here and never resent for an already-visible player, leaving
+    // CheckAttack() / getTargetCharacterKey() unable to recognize valid PvP targets without
+    // CTRL. We snapshot the previous values for the same Key and restore them after the
+    // reset. PK is intentionally NOT restored because the viewport packet always provides
+    // it fresh via (Data->RotationAndHeroState & 0xf).
+    //
+    // This is a client-side workaround. The proper long-term fix is server-side: bundle
+    // GuildIDViewport / Gens influence into (or immediately after) the viewport-create
+    // packet so the client never has to keep a snapshot. See CHANGELOG.md / BUG_CTRL_PVP.md.
+    const int ExistingIndex = FindCharacterIndex(Key);
+    const bool HasExisting = (ExistingIndex != MAX_CHARACTERS_CLIENT);
 
-    //if (Index != MAX_CHARACTERS_CLIENT)
-    //{
-    //auto BackUpGuildMarkIndex = CharactersClient[Index].GuildMarkIndex;
-    //auto BackUpGuildStatus = CharactersClient[Index].GuildStatus;
-    //auto BackUpGuildType = CharactersClient[Index].GuildType;
-    //auto BackUpGuildRelationShip = CharactersClient[Index].GuildRelationShip;
-    //auto BackUpGuildMasterKillCount = CharactersClient[Index].GuildMasterKillCount;
-    //auto EtcPart = CharactersClient[Index].EtcPart;
-    //BYTE BackupCtlcode = 0;
-    //if (&CharactersClient[Index] == Hero)
-    //{
-    //    BackupCtlcode = CharactersClient[Index].CtlCode;
-    //}
-    //}
+    short BackUpGuildMarkIndex       = -1;
+    BYTE  BackUpGuildStatus          = 0xFF;
+    BYTE  BackUpGuildType            = 0;
+    BYTE  BackUpGuildRelationShip    = 0;
+    BYTE  BackUpGuildMasterKillCount = 0;
+    BYTE  BackUpGuildTeam            = 0;
+    BYTE  BackUpEtcPart              = 0;
+    BYTE  BackUpGensInfluence        = 0;
+    BYTE  BackUpCtlCode              = 0;
+    bool  BackedUpHero               = false;
+
+    if (HasExisting)
+    {
+        const CHARACTER* Existing = &CharactersClient[ExistingIndex];
+        BackUpGuildMarkIndex       = Existing->GuildMarkIndex;
+        BackUpGuildStatus          = Existing->GuildStatus;
+        BackUpGuildType            = Existing->GuildType;
+        BackUpGuildRelationShip    = Existing->GuildRelationShip;
+        BackUpGuildMasterKillCount = Existing->GuildMasterKillCount;
+        BackUpGuildTeam            = Existing->GuildTeam;
+        BackUpEtcPart              = Existing->EtcPart;
+        BackUpGensInfluence        = Existing->m_byGensInfluence;
+        BackedUpHero               = (Existing == Hero);
+        if (BackedUpHero)
+        {
+            BackUpCtlCode = Existing->CtlCode;
+        }
+    }
 
     CHARACTER* c = CreateCharacter(Key, MODEL_PLAYER, Data->PositionX, Data->PositionY, 0);
     memset(c->ID, 0, sizeof c->ID);
@@ -2565,21 +2665,24 @@ void ReceiveCreatePlayerViewportExtended(std::span<const BYTE> ReceiveBuffer)
     int Index = FindCharacterIndex(Key);
     ReadEquipmentExtended(Index, Data->Flags, Data->Equipment);
 
-    //if ((Data->Flags & 0x07) == 1)
-    //{
-    //    // after teleport between servers, restore some previous values.
-    //    c->GuildMarkIndex = BackUpGuildMarkIndex;
-    //    c->GuildStatus = BackUpGuildStatus;
-    //    c->GuildType = BackUpGuildType;
-    //    c->GuildRelationShip = BackUpGuildRelationShip;
-    //    c->EtcPart = EtcPart;
-    //    c->GuildMasterKillCount = BackUpGuildMasterKillCount;
-
-    //    if (&CharactersClient[Index] == Hero)
-    //    {
-    //        c->CtlCode = BackupCtlcode;
-    //    }
-    //}
+    // [BUG_CTRL_PVP] Restore PvP/social state captured before CreateCharacter wiped it.
+    // Guard: only restore when the new resolution maps to the SAME slot and SAME Key,
+    // so we never copy stale state onto a reused slot belonging to a different player.
+    if (HasExisting && Index != MAX_CHARACTERS_CLIENT && Index == ExistingIndex && c->Key == Key)
+    {
+        c->GuildMarkIndex       = BackUpGuildMarkIndex;
+        c->GuildStatus          = BackUpGuildStatus;
+        c->GuildType            = BackUpGuildType;
+        c->GuildRelationShip    = BackUpGuildRelationShip;
+        c->GuildMasterKillCount = BackUpGuildMasterKillCount;
+        c->GuildTeam            = BackUpGuildTeam;
+        c->EtcPart              = BackUpEtcPart;
+        c->m_byGensInfluence    = BackUpGensInfluence;
+        if (BackedUpHero)
+        {
+            c->CtlCode = BackUpCtlCode;
+        }
+    }
 
     if (Data->s_BuffCount > 0)
     {
@@ -2599,6 +2702,7 @@ void ReceiveCreatePlayerViewportExtended(std::span<const BYTE> ReceiveBuffer)
         }
     }
 
+    ReportPvpViewportState("create-player-viewport", Key, Index, c);
     g_ConsoleDebug->Write(MCD_RECEIVE, L"0x12 [ReceiveCreatePlayerViewportExtended]");
 }
 
@@ -6961,7 +7065,8 @@ void ReceivePK(const BYTE* ReceiveBuffer)
 {
     auto Data = (LPPRECEIVE_PK)ReceiveBuffer;
     int Key = ((int)(Data->KeyH) << 8) + Data->KeyL;
-    CHARACTER* c = &CharactersClient[FindCharacterIndex(Key)];
+    int Index = FindCharacterIndex(Key);
+    CHARACTER* c = &CharactersClient[Index];
     c->PK = Data->PK;
 
 #ifdef PK_ATTACK_TESTSERVER_LOG
@@ -6972,6 +7077,8 @@ void ReceivePK(const BYTE* ReceiveBuffer)
         c->Level = 1;
     else
         c->Level = 0;
+
+    ReportPvpViewportState("pk-update", Key, Index, c);
 
     wchar_t message[256]{};
     wcscpy(message, c->ID);
@@ -7645,6 +7752,7 @@ void ReceiveGuildIDViewport(const BYTE* ReceiveBuffer)
         }
 
         GuildTeam(c);
+        ReportPvpViewportState("guild-viewport", Key, Index, c);
 
         if (gMapManager.WorldActive == WD_30BATTLECASTLE)
         {

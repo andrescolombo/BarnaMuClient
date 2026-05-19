@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Elf party buffs now work through Mu Helper automation (`src/source/MUHelper/MuHelper.cpp`, `src/source/Engine/Object/ZzzInterface.cpp`, `BUG_ELF_BUFF.md`):
+  - Symptom: manually casting Elf support buffs worked, but Mu Helper automation only played the cast animation and sent packets like `SendRequestMagic(27 65535)` / `SendRequestMagic(28 65535)`, so no party member received Defense or Attack buff.
+  - Root cause: Mu Helper wrote raw skill IDs into `g_MovementSkill.m_iSkill` even though the downstream magic path expects a learned skill-list index. After that was fixed, the Elf PvP target gate still cleared friendly party targets to `-1`, causing `UseSkillElf()` to send `0xffff` (`65535`) as the target key.
+  - Fix: Mu Helper now resolves the skill-list index before executing skills. Elf support skills preserve valid player targets before applying attack-only PvP gates, and `UseSkillElf()` falls back to `SelectedCharacter` for friendly support casts so automated party buffs send the real party member key.
+
 - Elf and Summoner area skills now require CTRL like every other class (`src/source/Engine/Object/ZzzInterface.cpp`, marker `[BUG_CTRL_PVP]`):
   - Symptom: on PvP-allowed maps (Arena, Lorencia, Noria, etc.) with two neutral players (no guild, no party, no PK, no duel), Elf `Multi Shot` / `Triple Shot` and Summoner `Lightning Shock` damaged the target without `CTRL` being held. Dark Knight, Magic Gladiator, Dark Wizard, and Rage Fighter area skills correctly required `CTRL` — only Elf and Summoner bypassed the PvP rule, breaking the standard MU Online expectation that neutral players must explicitly opt into PvP via `CTRL`.
   - Root cause: `AttackRagefighter`, the wall-recovery branch for DK/MG/Dark Lord, both `AT_SKILL_PLASMA_STORM_FENRIR` paths, and the end of `AttackWizard` all gated `g_MovementSkill.m_iTarget = SelectedCharacter` behind `if (CheckAttack())`, forcing `-1` on neutral players (no CTRL) so downstream area skills shipped `TargetKey = 0xFFFF` and the server applied no PvP damage. Two paths were missing this gate: `AttackElf()` set `m_iTarget = SelectedCharacter` unconditionally (Elf bug), and a second unconditional assignment inside `AttackWizard` (Summoner Lightning Shock / Alice skills) did the same.

@@ -169,6 +169,19 @@ namespace
 #endif
     }
 
+    bool IsElfSupportSkill(int skill)
+    {
+        // Friendly Elf support skills must keep player targets even when PvP checks reject attacks.
+        return skill == AT_SKILL_HEALING
+            || skill == AT_SKILL_HEALING_STR
+            || skill == AT_SKILL_ATTACK
+            || skill == AT_SKILL_ATTACK_STR
+            || skill == AT_SKILL_ATTACK_MASTERY
+            || skill == AT_SKILL_DEFENSE
+            || skill == AT_SKILL_DEFENSE_STR
+            || skill == AT_SKILL_DEFENSE_MASTERY;
+    }
+
     void ReportPvpSelectionTrace(const char* stage, int selected, int selectedNpc, int selectedItem, int selectedOperate, int attacking)
     {
 #ifdef _DEBUG
@@ -2753,6 +2766,14 @@ void UseSkillElf(CHARACTER* c, OBJECT* o)
     {
         TKey = getTargetCharacterKey(c, g_MovementSkill.m_iTarget);
     }
+    else if (IsElfSupportSkill(Skill)
+        && SelectedCharacter >= 0
+        && SelectedCharacter < MAX_CHARACTERS_CLIENT
+        && CharactersClient[SelectedCharacter].Object.Kind == KIND_PLAYER)
+    {
+        // Mu Helper can reach this path after attack gating clears m_iTarget; keep the buff target.
+        TKey = CharactersClient[SelectedCharacter].Key;
+    }
 
     switch (Skill)
     {
@@ -5200,7 +5221,15 @@ void AttackElf(CHARACTER* c, int Skill, float Distance)
         // (Multi Shot, Triple Shot, Penetration, etc.) carry a real TargetKey on neutral players
         // even with no CTRL, and the server applies PvP damage that other classes correctly skip.
         // Now Elf requires CTRL like everyone else.
-        if (CheckAttack())
+        if (IsElfSupportSkill(Skill)
+            && SelectedCharacter >= 0
+            && SelectedCharacter < MAX_CHARACTERS_CLIENT
+            && CharactersClient[SelectedCharacter].Object.Kind == KIND_PLAYER)
+        {
+            // Support buffs are friendly targeted casts, not PvP attacks.
+            g_MovementSkill.m_iTarget = SelectedCharacter;
+        }
+        else if (CheckAttack())
         {
             g_MovementSkill.m_iTarget = SelectedCharacter;
         }
@@ -5328,6 +5357,25 @@ void AttackElf(CHARACTER* c, int Skill, float Distance)
         //			UseSkillElf( c, o);
     }
     break;
+    case AT_SKILL_HEALING:
+    case AT_SKILL_HEALING_STR:
+    case AT_SKILL_ATTACK:
+    case AT_SKILL_ATTACK_STR:
+    case AT_SKILL_ATTACK_MASTERY:
+    case AT_SKILL_DEFENSE:
+    case AT_SKILL_DEFENSE_STR:
+    case AT_SKILL_DEFENSE_MASTERY:
+        if (SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT
+            && CharactersClient[SelectedCharacter].Object.Kind == KIND_PLAYER)
+        {
+            SendRequestMagic(Skill, CharactersClient[SelectedCharacter].Key);
+        }
+        else
+        {
+            SendRequestMagic(Skill, HeroKey);
+        }
+        SetPlayerMagic(c);
+        return;
     case AT_SKILL_MULTI_SHOT:
     {
         if (!CheckArrow())

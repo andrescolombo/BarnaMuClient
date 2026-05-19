@@ -20,6 +20,7 @@
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
+#include "Network/Server/WSclient.h"
 
 extern BYTE m_OccupationState;
 extern int TargetX;
@@ -453,6 +454,44 @@ bool SEASON3B::CNewUIMiniMap::UpdateMouseEvent()
             PlayBuffer(SOUND_CLICK01);
         }
 
+        return false;
+    }
+
+    static bool s_isAdminLatched = false;
+    if (Hero != nullptr)
+    {
+        const bool isAdminNow =
+            (Hero->CtlCode & (CTLCODE_08OPERATOR | CTLCODE_20OPERATOR)) != 0
+            || g_isCharacterBuff((&Hero->Object), eBuff_GMEffect) != FALSE;
+        if (isAdminNow)
+        {
+            s_isAdminLatched = true;
+        }
+    }
+
+    if (IsPress(VK_RBUTTON) &&
+        CheckMouseIn(MINIMAP_VIEWPORT_X, MINIMAP_VIEWPORT_Y, MINIMAP_VIEWPORT_WIDTH, MINIMAP_VIEWPORT_HEIGHT) &&
+        s_isAdminLatched)
+    {
+        const float zoomWidth  = static_cast<float>(m_Lenth[m_MiniPos].x);
+        const float zoomHeight = static_cast<float>(m_Lenth[m_MiniPos].y);
+        if (m_bSuccess && Hero && zoomWidth > 0.f && zoomHeight > 0.f)
+        {
+            const float screenOffsetX = static_cast<float>(MouseX) - MINIMAP_PLAYER_CENTER_X;
+            const float screenOffsetY = MINIMAP_PLAYER_CENTER_Y - static_cast<float>(MouseY);
+            const float mapHorizontalOffset = (screenOffsetX + screenOffsetY) * MINIMAP_INVERSE_ROTATION_FACTOR;
+            const float mapVerticalOffset   = (-screenOffsetX + screenOffsetY) * MINIMAP_INVERSE_ROTATION_FACTOR;
+
+            const int targetTileY = ClampMinimapTile(static_cast<int>(
+                Hero->PositionY + mapHorizontalOffset * (MINIMAP_TILE_COUNT / zoomWidth)));
+            const int targetTileX = ClampMinimapTile(static_cast<int>(
+                Hero->PositionX - mapVerticalOffset   * (MINIMAP_TILE_COUNT / zoomHeight)));
+
+            SocketClient->ToGameServer()->SendInstantMoveRequest(
+                static_cast<BYTE>(targetTileX), static_cast<BYTE>(targetTileY));
+            CreateMinimapMoveTargetEffect(targetTileX, targetTileY);
+            PlayBuffer(SOUND_CLICK01);
+        }
         return false;
     }
 

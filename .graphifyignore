@@ -1,0 +1,21 @@
+# Build outputs and fetched dependencies
+build/
+build-mingw/
+_deps/
+**/cmake-build-debug/
+**/cmake-build-release/
+**/CMakeFiles/
+Win32/
+.vs/
+.nuget/
+
+# Vendored third-party trees (SDL, imgui, etc.)
+src/ThirdParty/
+
+# .NET build artifacts
+**/bin/
+**/obj/
+
+# IDE and local-only paths
+**/.idea/
+docs/reviews/

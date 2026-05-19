@@ -3,6 +3,8 @@
 This file is the entry point for AI coding assistants (Claude Code, Cursor, Codex,
 etc.) working in this repository. It also applies to human contributors.
 
+For a comprehensive, high-density architectural overview and file directory mapping of common tasks (such as UI, network protocol, 3D camera, rendering, and translations), please refer to [LLM.md](LLM.md).
+
 ## Coding rules — read first
 
 **The coding rules in [`docs/CODING_RULES.md`](docs/CODING_RULES.md) apply to all

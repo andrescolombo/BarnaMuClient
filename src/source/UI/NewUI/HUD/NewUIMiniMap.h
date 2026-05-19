@@ -50,6 +50,9 @@ namespace SEASON3B
         CNewUIButton			m_BtnExit;
         MINI_MAP				m_Mini_Map_Data[MAX_MINI_MAP_DATA];
         float					m_Btn_Loc[MAX_MINI_MAP_DATA][4];
+        bool					m_HasMoveTarget;
+        int						m_MoveTargetX;
+        int						m_MoveTargetY;
 
     public:
         bool					m_bSuccess;
@@ -80,6 +83,9 @@ namespace SEASON3B
         void Render_Text();
         void Render_Icon();
         void Render_Scroll();
+        void ResetMoveTarget();
+        bool TrySendMoveSegment(int targetTileX, int targetTileY);
+        void ContinueMoveTarget();
         bool Check_Mouse(int mx, int my);
         bool Check_Btn(int mx, int my);
     };

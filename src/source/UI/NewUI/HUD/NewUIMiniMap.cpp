@@ -89,6 +89,9 @@ namespace
 SEASON3B::CNewUIMiniMap::CNewUIMiniMap()
 {
     m_pNewUIMng = NULL;
+    m_HasMoveTarget = false;
+    m_MoveTargetX = 0;
+    m_MoveTargetY = 0;
 }
 
 SEASON3B::CNewUIMiniMap::~CNewUIMiniMap()
@@ -136,6 +139,7 @@ bool SEASON3B::CNewUIMiniMap::Create(CNewUIManager* pNewUIMng, int x, int y)
 
 void SEASON3B::CNewUIMiniMap::ClosingProcess()
 {
+    ResetMoveTarget();
     SocketClient->ToGameServer()->SendCloseNpcRequest();
 }
 
@@ -269,6 +273,7 @@ bool SEASON3B::CNewUIMiniMap::Render()
 
 bool SEASON3B::CNewUIMiniMap::Update()
 {
+    ContinueMoveTarget();
     return true;
 }
 
@@ -377,6 +382,61 @@ bool SEASON3B::CNewUIMiniMap::UpdateMouseEvent()
     return true;
 }
 
+void SEASON3B::CNewUIMiniMap::ResetMoveTarget()
+{
+    m_HasMoveTarget = false;
+    m_MoveTargetX = 0;
+    m_MoveTargetY = 0;
+}
+
+bool SEASON3B::CNewUIMiniMap::TrySendMoveSegment(int targetTileX, int targetTileY)
+{
+    if (Hero == nullptr)
+    {
+        return false;
+    }
+    if (Hero->PositionX == targetTileX && Hero->PositionY == targetTileY)
+    {
+        return false;
+    }
+    if (!PathFinding2(Hero->PositionX, Hero->PositionY, targetTileX, targetTileY, &Hero->Path))
+    {
+        return false;
+    }
+
+    TargetX = targetTileX;
+    TargetY = targetTileY;
+    Hero->MovementType = MOVEMENT_MOVE;
+    SendMove(Hero, &Hero->Object);
+    return true;
+}
+
+void SEASON3B::CNewUIMiniMap::ContinueMoveTarget()
+{
+    if (!m_HasMoveTarget)
+    {
+        return;
+    }
+    if (Hero == nullptr)
+    {
+        ResetMoveTarget();
+        return;
+    }
+    if (Hero->PositionX == m_MoveTargetX && Hero->PositionY == m_MoveTargetY)
+    {
+        ResetMoveTarget();
+        return;
+    }
+    if (Hero->Movement && Hero->Path.CurrentPath < Hero->Path.PathNum - 1)
+    {
+        return;
+    }
+    if (!TrySendMoveSegment(m_MoveTargetX, m_MoveTargetY))
+    {
+        ResetMoveTarget();
+    }
+}
+
 bool SEASON3B::CNewUIMiniMap::Check_Mouse(int mx, int my)
 {
     if (m_bSuccess == false || Hero == nullptr)
@@ -408,15 +468,14 @@ bool SEASON3B::CNewUIMiniMap::Check_Mouse(int mx, int my)
     {
         return false;
     }
-    if (!PathFinding2(Hero->PositionX, Hero->PositionY, targetTileX, targetTileY, &Hero->Path))
+    if (!TrySendMoveSegment(targetTileX, targetTileY))
     {
         return false;
     }
 
-    TargetX = targetTileX;
-    TargetY = targetTileY;
-    Hero->MovementType = MOVEMENT_MOVE;
-    SendMove(Hero, &Hero->Object);
+    m_HasMoveTarget = true;
+    m_MoveTargetX = targetTileX;
+    m_MoveTargetY = targetTileY;
     CreateMinimapMoveTargetEffect(targetTileX, targetTileY);
     return true;
 }

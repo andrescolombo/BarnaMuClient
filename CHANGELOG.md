@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added an experimental inventory rearrange button that supports `1x1`, `1x3`, `2x2`, `2x3`, and `2x4` items, computes one fixed compact 8x8 layout, prefers 2-column lanes for wide items, refreshes the client-only item key after each accepted move, and uses temporary empty slots to keep moving items one at a time after a single click.
+- Added an experimental inventory rearrange button that supports `1x1`, `1x3`, `2x2`, `2x3`, `2x4`, and `4x3` items, computes one fixed compact 8x8 layout, prefers width-aligned lanes for wide items, refreshes the client-only item key after each accepted move, and uses temporary empty slots to keep moving items one at a time after a single click.
 
 - Dimmed inventory equip-status slot overlays:
   - Red slot background still marks items for a different class.

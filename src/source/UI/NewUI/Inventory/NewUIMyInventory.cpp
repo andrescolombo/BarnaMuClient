@@ -109,7 +109,8 @@ namespace
             || (width == 2 && height == 2)
             || (width == 1 && height == 3)
             || (width == 2 && height == 3)
-            || (width == 2 && height == 4);
+            || (width == 2 && height == 4)
+            || (width == 4 && height == 3);
     }
 
     void OccupyArrangeCells(std::vector<DWORD>& occupied, int columnCount, const ArrangeItem& item, DWORD value)
@@ -168,7 +169,7 @@ namespace
 
     bool IsBetterArrangePlacement(const ArrangeItem& item, const ArrangePlacementScore& candidate, const ArrangePlacementScore& best)
     {
-        if (item.width == 2)
+        if (item.width > 1)
         {
             if (candidate.oddColumn != best.oddColumn)
             {
@@ -228,8 +229,8 @@ namespace
                     right,
                     row,
                     column,
-                    column / 2,
-                    column % 2
+                    column / item.width,
+                    column % item.width
                 };
 
                 if (!found || IsBetterArrangePlacement(item, candidateScore, bestScore))

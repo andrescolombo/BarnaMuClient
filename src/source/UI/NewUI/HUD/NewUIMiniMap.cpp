@@ -15,10 +15,76 @@
 #include "UI/NewUI/Inventory/NewUIMyInventory.h"
 #include "GameLogic/Items/CSItemOption.h"
 #include "World/MapInfra/MapManager.h"
+#include "Engine/AI/ZzzAI.h"
+#include "Engine/Object/ZzzCharacter.h"
+#include "Engine/Object/ZzzInterface.h"
+#include "Render/Effects/ZzzEffect.h"
+#include "Render/Terrain/ZzzLodTerrain.h"
 
 extern BYTE m_OccupationState;
+extern int TargetX;
+extern int TargetY;
 
 using namespace SEASON3B;
+
+namespace
+{
+    constexpr int MINIMAP_VIEWPORT_X = 0;
+    constexpr int MINIMAP_VIEWPORT_Y = 0;
+    constexpr int MINIMAP_VIEWPORT_WIDTH = REFERENCE_WIDTH;
+    constexpr int MINIMAP_VIEWPORT_HEIGHT = 430;
+    constexpr int MINIMAP_TILE_MIN = 0;
+    constexpr int MINIMAP_TILE_MAX = TERRAIN_SIZE - 1;
+    constexpr int MINIMAP_ZOOM_LEVEL_COUNT = 6;
+    constexpr float MINIMAP_PLAYER_CENTER_X = static_cast<float>(REFERENCE_WIDTH) * 0.5f;
+    constexpr float MINIMAP_PLAYER_CENTER_Y = static_cast<float>(REFERENCE_HEIGHT) * 0.5f;
+    constexpr float MINIMAP_INVERSE_ROTATION_FACTOR = 0.70710678f;
+    constexpr float MINIMAP_TILE_COUNT = static_cast<float>(TERRAIN_SIZE);
+    constexpr float MINIMAP_TARGET_EFFECT_SCALE = 0.6f;
+    constexpr float MINIMAP_TARGET_LIGHT = 1.0f;
+
+    int ClampMinimapTile(int value)
+    {
+        if (value < MINIMAP_TILE_MIN)
+        {
+            return MINIMAP_TILE_MIN;
+        }
+        if (value > MINIMAP_TILE_MAX)
+        {
+            return MINIMAP_TILE_MAX;
+        }
+
+        return value;
+    }
+
+    bool IsMinimapTileWalkable(int tileX, int tileY)
+    {
+        const WORD attribute = TerrainWall[TERRAIN_INDEX(tileX, tileY)];
+        return attribute < TW_NOGROUND
+            || (attribute & TW_ACTION) == TW_ACTION
+            || (attribute & TW_HEIGHT) == TW_HEIGHT;
+    }
+
+    void CreateMinimapMoveTargetEffect(int tileX, int tileY)
+    {
+        OBJECT* pHeroObj = &Hero->Object;
+        vec3_t targetPosition;
+        vec3_t targetLight;
+
+        targetPosition[0] = static_cast<float>(tileX) * TERRAIN_SCALE + (TERRAIN_SCALE * 0.5f);
+        targetPosition[1] = static_cast<float>(tileY) * TERRAIN_SCALE + (TERRAIN_SCALE * 0.5f);
+        targetPosition[2] = RequestTerrainHeight(targetPosition[0], targetPosition[1]);
+
+        Vector(MINIMAP_TARGET_LIGHT, MINIMAP_TARGET_LIGHT, 0.0f, targetLight);
+        DeleteEffect(MODEL_MOVE_TARGETPOSITION_EFFECT);
+
+        if ((TerrainWall[TERRAIN_INDEX(tileX, tileY)] & TW_NOMOVE) != TW_NOMOVE)
+        {
+            CreateEffect(MODEL_MOVE_TARGETPOSITION_EFFECT, targetPosition, pHeroObj->Angle, targetLight,
+                0, pHeroObj, -1, 0, 0, 0, MINIMAP_TARGET_EFFECT_SCALE);
+        }
+    }
+}
 
 SEASON3B::CNewUIMiniMap::CNewUIMiniMap()
 {
@@ -286,33 +352,72 @@ void SEASON3B::CNewUIMiniMap::UnloadImages()
 
 bool SEASON3B::CNewUIMiniMap::UpdateMouseEvent()
 {
-    bool ret = true;
-
     if (m_BtnExit.UpdateMouseEvent() == true)
     {
         g_pNewUISystem->Hide(SEASON3B::INTERFACE_MINI_MAP);
         return true;
     }
 
-    if (IsPress(VK_LBUTTON))
+    if (IsPress(VK_LBUTTON) &&
+        CheckMouseIn(MINIMAP_VIEWPORT_X, MINIMAP_VIEWPORT_Y, MINIMAP_VIEWPORT_WIDTH, MINIMAP_VIEWPORT_HEIGHT))
     {
-        ret = Check_Mouse(MouseX, MouseY);
-        if (ret == false)
+        if (Check_Mouse(MouseX, MouseY))
         {
             PlayBuffer(SOUND_CLICK01);
         }
+
+        return false;
     }
 
-    if (CheckMouseIn(0, 0, REFERENCE_WIDTH, 430))
+    if (CheckMouseIn(MINIMAP_VIEWPORT_X, MINIMAP_VIEWPORT_Y, MINIMAP_VIEWPORT_WIDTH, MINIMAP_VIEWPORT_HEIGHT))
     {
         return false;
     }
 
-    return ret;
+    return true;
 }
 
 bool SEASON3B::CNewUIMiniMap::Check_Mouse(int mx, int my)
 {
+    if (m_bSuccess == false || Hero == nullptr)
+    {
+        return false;
+    }
+    if (m_MiniPos < 0 || m_MiniPos >= MINIMAP_ZOOM_LEVEL_COUNT)
+    {
+        return false;
+    }
+
+    const float zoomWidth = static_cast<float>(m_Lenth[m_MiniPos].x);
+    const float zoomHeight = static_cast<float>(m_Lenth[m_MiniPos].y);
+    if (zoomWidth <= 0.0f || zoomHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float screenOffsetX = static_cast<float>(mx) - MINIMAP_PLAYER_CENTER_X;
+    const float screenOffsetY = MINIMAP_PLAYER_CENTER_Y - static_cast<float>(my);
+    const float mapHorizontalOffset = (screenOffsetX + screenOffsetY) * MINIMAP_INVERSE_ROTATION_FACTOR;
+    const float mapVerticalOffset = (-screenOffsetX + screenOffsetY) * MINIMAP_INVERSE_ROTATION_FACTOR;
+
+    const int targetTileY = ClampMinimapTile(static_cast<int>(
+        Hero->PositionY + mapHorizontalOffset * (MINIMAP_TILE_COUNT / zoomWidth)));
+    const int targetTileX = ClampMinimapTile(static_cast<int>(
+        Hero->PositionX - mapVerticalOffset * (MINIMAP_TILE_COUNT / zoomHeight)));
+    if (!IsMinimapTileWalkable(targetTileX, targetTileY))
+    {
+        return false;
+    }
+    if (!PathFinding2(Hero->PositionX, Hero->PositionY, targetTileX, targetTileY, &Hero->Path))
+    {
+        return false;
+    }
+
+    TargetX = targetTileX;
+    TargetY = targetTileY;
+    Hero->MovementType = MOVEMENT_MOVE;
+    SendMove(Hero, &Hero->Object);
+    CreateMinimapMoveTargetEffect(targetTileX, targetTileY);
     return true;
 }
 

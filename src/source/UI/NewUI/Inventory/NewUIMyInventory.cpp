@@ -59,12 +59,15 @@ namespace
         int height;
     };
 
-    struct ArrangeRect
+    struct ArrangePlacementScore
     {
-        int x;
-        int y;
-        int width;
-        int height;
+        int area;
+        int bottom;
+        int right;
+        int row;
+        int column;
+        int columnLane;
+        int oddColumn;
     };
 
     bool IsInventoryRearrangeInterfaceBlocked()
@@ -95,19 +98,6 @@ namespace
         return item.width * item.height;
     }
 
-    int GetArrangeArea(const ArrangeRect& rect)
-    {
-        return rect.width * rect.height;
-    }
-
-    bool IsArrangeRectContained(const ArrangeRect& inner, const ArrangeRect& outer)
-    {
-        return inner.x >= outer.x
-            && inner.y >= outer.y
-            && inner.x + inner.width <= outer.x + outer.width
-            && inner.y + inner.height <= outer.y + outer.height;
-    }
-
     bool IsArrangeItemAtTarget(const ArrangeItem& item)
     {
         return item.sourceX == item.targetX && item.sourceY == item.targetY;
@@ -118,7 +108,8 @@ namespace
         return (width == 1 && height == 1)
             || (width == 2 && height == 2)
             || (width == 1 && height == 3)
-            || (width == 2 && height == 3);
+            || (width == 2 && height == 3)
+            || (width == 2 && height == 4);
     }
 
     void OccupyArrangeCells(std::vector<DWORD>& occupied, int columnCount, const ArrangeItem& item, DWORD value)
@@ -154,76 +145,215 @@ namespace
         return true;
     }
 
-    void RemoveContainedArrangeRects(std::vector<ArrangeRect>& freeRects)
+    bool CanPlaceArrangeTarget(const std::vector<bool>& occupied, int columnCount, int rowCount, const ArrangeItem& item, int column, int row)
     {
-        for (size_t i = 0; i < freeRects.size(); ++i)
+        if (column + item.width > columnCount || row + item.height > rowCount)
         {
-            for (size_t j = i + 1; j < freeRects.size();)
+            return false;
+        }
+
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
             {
-                if (IsArrangeRectContained(freeRects[i], freeRects[j]))
+                if (occupied[GetArrangeIndex(column + x, row + y, columnCount)])
                 {
-                    freeRects.erase(freeRects.begin() + i);
-                    --i;
-                    break;
+                    return false;
                 }
-                if (IsArrangeRectContained(freeRects[j], freeRects[i]))
-                {
-                    freeRects.erase(freeRects.begin() + j);
-                    continue;
-                }
-                ++j;
             }
         }
+
+        return true;
     }
 
-    void SplitArrangeFreeRect(std::vector<ArrangeRect>& freeRects, size_t rectIndex, const ArrangeItem& item)
+    bool IsBetterArrangePlacement(const ArrangeItem& item, const ArrangePlacementScore& candidate, const ArrangePlacementScore& best)
     {
-        const ArrangeRect rect = freeRects[rectIndex];
-        freeRects.erase(freeRects.begin() + rectIndex);
-
-        const int rightWidth = rect.width - item.width;
-        if (rightWidth > 0)
+        if (item.width == 2)
         {
-            freeRects.push_back({ item.targetX + item.width, item.targetY, rightWidth, item.height });
+            if (candidate.oddColumn != best.oddColumn)
+            {
+                return candidate.oddColumn < best.oddColumn;
+            }
+            if (candidate.columnLane != best.columnLane)
+            {
+                return candidate.columnLane < best.columnLane;
+            }
+            if (candidate.row != best.row)
+            {
+                return candidate.row < best.row;
+            }
         }
 
-        const int bottomHeight = rect.height - item.height;
-        if (bottomHeight > 0)
+        if (candidate.bottom != best.bottom)
         {
-            freeRects.push_back({ rect.x, item.targetY + item.height, rect.width, bottomHeight });
+            return candidate.bottom < best.bottom;
+        }
+        if (candidate.area != best.area)
+        {
+            return candidate.area < best.area;
+        }
+        if (candidate.right != best.right)
+        {
+            return candidate.right < best.right;
+        }
+        if (candidate.row != best.row)
+        {
+            return candidate.row < best.row;
         }
 
-        RemoveContainedArrangeRects(freeRects);
+        return candidate.column < best.column;
     }
 
-    bool FindBestArrangeRect(const std::vector<ArrangeRect>& freeRects, const ArrangeItem& item, size_t& bestRectIndex)
+    bool FindBestArrangeTarget(const std::vector<bool>& occupied, int columnCount, int rowCount, ArrangeItem& item)
     {
         bool found = false;
-        int bestWaste = 0;
-        ArrangeRect bestRect{};
+        ArrangePlacementScore bestScore{};
+        int bestColumn = 0;
+        int bestRow = 0;
 
-        for (size_t i = 0; i < freeRects.size(); ++i)
+        for (int row = 0; row < rowCount; ++row)
         {
-            const ArrangeRect& rect = freeRects[i];
-            if (item.width > rect.width || item.height > rect.height)
+            for (int column = 0; column < columnCount; ++column)
             {
-                continue;
-            }
+                if (!CanPlaceArrangeTarget(occupied, columnCount, rowCount, item, column, row))
+                {
+                    continue;
+                }
 
-            const int waste = GetArrangeArea(rect) - GetArrangeArea(item);
-            if (!found
-                || waste < bestWaste
-                || (waste == bestWaste && rect.y < bestRect.y)
-                || (waste == bestWaste && rect.y == bestRect.y && rect.x < bestRect.x))
-            {
-                found = true;
-                bestWaste = waste;
-                bestRect = rect;
-                bestRectIndex = i;
+                const int bottom = row + item.height;
+                const int right = column + item.width;
+                const ArrangePlacementScore candidateScore = {
+                    bottom * right,
+                    bottom,
+                    right,
+                    row,
+                    column,
+                    column / 2,
+                    column % 2
+                };
+
+                if (!found || IsBetterArrangePlacement(item, candidateScore, bestScore))
+                {
+                    found = true;
+                    bestScore = candidateScore;
+                    bestColumn = column;
+                    bestRow = row;
+                }
             }
         }
 
-        return found;
+        if (!found)
+        {
+            return false;
+        }
+
+        item.targetX = bestColumn;
+        item.targetY = bestRow;
+        return true;
+    }
+
+    void OccupyArrangeTargetCells(std::vector<bool>& occupied, int columnCount, const ArrangeItem& item)
+    {
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
+            {
+                occupied[GetArrangeIndex(item.targetX + x, item.targetY + y, columnCount)] = true;
+            }
+        }
+    }
+
+    void MarkArrangeTargetCells(std::vector<bool>& targetCells, int columnCount, const ArrangeItem& item)
+    {
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
+            {
+                targetCells[GetArrangeIndex(item.targetX + x, item.targetY + y, columnCount)] = true;
+            }
+        }
+    }
+
+    DWORD FindArrangeTargetBlocker(const std::vector<DWORD>& occupied, int columnCount, const ArrangeItem& item)
+    {
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
+            {
+                const DWORD cellKey = occupied[GetArrangeIndex(item.targetX + x, item.targetY + y, columnCount)];
+                if (cellKey != 0 && cellKey != item.key)
+                {
+                    return cellKey;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    ArrangeItem* FindArrangeItemByKey(std::vector<ArrangeItem>& items, DWORD key)
+    {
+        for (ArrangeItem& item : items)
+        {
+            if (item.key == key)
+            {
+                return &item;
+            }
+        }
+
+        return nullptr;
+    }
+
+    bool CanPlaceArrangeTemporary(const std::vector<DWORD>& occupied, const std::vector<bool>& targetCells, int columnCount, int rowCount, const ArrangeItem& item, int column, int row, bool avoidTargetCells)
+    {
+        if (column + item.width > columnCount || row + item.height > rowCount)
+        {
+            return false;
+        }
+        if (column == item.sourceX && row == item.sourceY)
+        {
+            return false;
+        }
+
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
+            {
+                const int index = GetArrangeIndex(column + x, row + y, columnCount);
+                if (avoidTargetCells && targetCells[index])
+                {
+                    return false;
+                }
+                if (occupied[index] != 0 && occupied[index] != item.key)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool FindArrangeTemporaryTarget(const std::vector<DWORD>& occupied, const std::vector<bool>& targetCells, int columnCount, int rowCount, ArrangeItem& item, int& targetX, int& targetY)
+    {
+        for (int pass = 0; pass < 2; ++pass)
+        {
+            const bool avoidTargetCells = pass == 0;
+            for (int row = rowCount - item.height; row >= 0; --row)
+            {
+                for (int column = columnCount - item.width; column >= 0; --column)
+                {
+                    if (CanPlaceArrangeTemporary(occupied, targetCells, columnCount, rowCount, item, column, row, avoidTargetCells))
+                    {
+                        targetX = column;
+                        targetY = row;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     bool ComputeArrangeTargets(std::vector<ArrangeItem>& items, int columnCount, int rowCount)
@@ -244,43 +374,79 @@ namespace
             {
                 return left.width > right.width;
             }
-            return left.sourceIndex < right.sourceIndex;
+            return left.key < right.key;
         });
 
-        std::vector<ArrangeRect> freeRects;
-        freeRects.push_back({ 0, 0, columnCount, rowCount });
+        std::vector<bool> occupied(columnCount * rowCount, false);
 
         for (ArrangeItem& item : items)
         {
-            size_t rectIndex = 0;
-            if (!FindBestArrangeRect(freeRects, item, rectIndex))
+            if (!FindBestArrangeTarget(occupied, columnCount, rowCount, item))
             {
                 return false;
             }
 
-            item.targetX = freeRects[rectIndex].x;
-            item.targetY = freeRects[rectIndex].y;
-            SplitArrangeFreeRect(freeRects, rectIndex, item);
+            OccupyArrangeTargetCells(occupied, columnCount, item);
         }
 
         return true;
     }
 
+    void MoveArrangeItem(std::vector<DWORD>& occupied, int columnCount, ArrangeItem& item, int targetX, int targetY, std::vector<SEASON3B::InventoryRearrangeMove>& moves)
+    {
+        OccupyArrangeCells(occupied, columnCount, item, 0);
+        item.sourceX = targetX;
+        item.sourceY = targetY;
+        OccupyArrangeCells(occupied, columnCount, item, item.key);
+
+        moves.push_back({ item.key, targetY * columnCount + targetX + MAX_EQUIPMENT });
+    }
+
+    void ReplaceArrangeMoveItemKey(std::vector<SEASON3B::InventoryRearrangeMove>& moves, DWORD oldKey, DWORD newKey)
+    {
+        if (oldKey == newKey)
+        {
+            return;
+        }
+
+        for (SEASON3B::InventoryRearrangeMove& move : moves)
+        {
+            if (move.itemKey == oldKey)
+            {
+                move.itemKey = newKey;
+            }
+        }
+    }
+
     bool GenerateArrangeMoves(std::vector<ArrangeItem> items, int columnCount, int rowCount, std::vector<SEASON3B::InventoryRearrangeMove>& moves)
     {
-        std::sort(items.begin(), items.end(), [](const ArrangeItem& left, const ArrangeItem& right)
+        std::sort(items.begin(), items.end(), [columnCount](const ArrangeItem& left, const ArrangeItem& right)
         {
-            return left.sourceIndex < right.sourceIndex;
+            const int leftTargetIndex = left.targetY * columnCount + left.targetX;
+            const int rightTargetIndex = right.targetY * columnCount + right.targetX;
+            if (leftTargetIndex != rightTargetIndex)
+            {
+                return leftTargetIndex < rightTargetIndex;
+            }
+
+            return left.key < right.key;
         });
 
         std::vector<DWORD> occupied(columnCount * rowCount, 0);
+        std::vector<bool> targetCells(columnCount * rowCount, false);
         for (const ArrangeItem& item : items)
         {
             OccupyArrangeCells(occupied, columnCount, item, item.key);
+            MarkArrangeTargetCells(targetCells, columnCount, item);
         }
 
         while (true)
         {
+            if (moves.size() > items.size() * columnCount * rowCount)
+            {
+                return false;
+            }
+
             bool hasPendingItem = false;
             bool movedItem = false;
 
@@ -297,12 +463,7 @@ namespace
                     continue;
                 }
 
-                OccupyArrangeCells(occupied, columnCount, item, 0);
-                item.sourceX = item.targetX;
-                item.sourceY = item.targetY;
-                OccupyArrangeCells(occupied, columnCount, item, item.key);
-
-                moves.push_back({ item.key, item.targetY * columnCount + item.targetX + MAX_EQUIPMENT });
+                MoveArrangeItem(occupied, columnCount, item, item.targetX, item.targetY, moves);
                 movedItem = true;
                 break;
             }
@@ -313,7 +474,36 @@ namespace
             }
             if (!movedItem)
             {
-                return false;
+                for (ArrangeItem& item : items)
+                {
+                    if (IsArrangeItemAtTarget(item))
+                    {
+                        continue;
+                    }
+
+                    const DWORD blockerKey = FindArrangeTargetBlocker(occupied, columnCount, item);
+                    ArrangeItem* pBlocker = FindArrangeItemByKey(items, blockerKey);
+                    if (pBlocker == nullptr)
+                    {
+                        continue;
+                    }
+
+                    int temporaryX = 0;
+                    int temporaryY = 0;
+                    if (!FindArrangeTemporaryTarget(occupied, targetCells, columnCount, rowCount, *pBlocker, temporaryX, temporaryY))
+                    {
+                        continue;
+                    }
+
+                    MoveArrangeItem(occupied, columnCount, *pBlocker, temporaryX, temporaryY, moves);
+                    movedItem = true;
+                    break;
+                }
+
+                if (!movedItem)
+                {
+                    return false;
+                }
             }
         }
     }
@@ -2008,8 +2198,23 @@ bool CNewUIMyInventory::BuildInventoryRearrangeMoves(std::vector<InventoryRearra
         });
     }
 
-    return ComputeArrangeTargets(items, columnCount, rowCount)
-        && GenerateArrangeMoves(items, columnCount, rowCount, moves);
+    if (!ComputeArrangeTargets(items, columnCount, rowCount))
+    {
+        return false;
+    }
+
+    std::vector<InventoryRearrangeMove> plannedMoves;
+    if (!GenerateArrangeMoves(items, columnCount, rowCount, plannedMoves))
+    {
+        return false;
+    }
+    if (plannedMoves.empty())
+    {
+        return false;
+    }
+
+    moves = plannedMoves;
+    return true;
 }
 
 void CNewUIMyInventory::ProcessInventoryRearrange()
@@ -2037,7 +2242,8 @@ void CNewUIMyInventory::ProcessInventoryRearrange()
         }
 
         const InventoryRearrangeMove& move = m_InventoryRearrangeMoves.front();
-        ITEM* pItem = m_pNewInventoryCtrl->FindItemByKey(move.itemKey);
+        const DWORD oldItemKey = move.itemKey;
+        ITEM* pItem = m_pNewInventoryCtrl->FindItem(move.targetIndex);
         if (pItem == nullptr || m_pNewInventoryCtrl->GetIndexByItem(pItem) != move.targetIndex)
         {
             m_bInventoryRearrangeMoveInFlight = false;
@@ -2046,6 +2252,7 @@ void CNewUIMyInventory::ProcessInventoryRearrange()
             return;
         }
 
+        ReplaceArrangeMoveItemKey(m_InventoryRearrangeMoves, oldItemKey, pItem->Key);
         m_InventoryRearrangeMoves.erase(m_InventoryRearrangeMoves.begin());
         m_bInventoryRearrangeMoveInFlight = false;
     }
@@ -2072,6 +2279,7 @@ void CNewUIMyInventory::RequestInventoryRearrange()
 
     if (!BuildInventoryRearrangeMoves(m_InventoryRearrangeMoves))
     {
+        m_InventoryRearrangeMoves.clear();
         return;
     }
 
@@ -2097,6 +2305,7 @@ bool CNewUIMyInventory::ExecuteNextInventoryRearrangeMove()
     const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
     if (sourceIndex == move.targetIndex)
     {
+        m_InventoryRearrangeMoves.erase(m_InventoryRearrangeMoves.begin());
         return true;
     }
     if (!CNewUIInventoryCtrl::CreatePickedItem(m_pNewInventoryCtrl, pItem))

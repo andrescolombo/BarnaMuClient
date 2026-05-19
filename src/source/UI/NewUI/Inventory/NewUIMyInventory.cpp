@@ -47,6 +47,26 @@ namespace
     constexpr int ARRANGE_BUTTON_WIDTH = 18;
     constexpr int ARRANGE_BUTTON_HEIGHT = 29;
 
+    struct ArrangeItem
+    {
+        DWORD key;
+        int sourceIndex;
+        int sourceX;
+        int sourceY;
+        int targetX;
+        int targetY;
+        int width;
+        int height;
+    };
+
+    struct ArrangeRect
+    {
+        int x;
+        int y;
+        int width;
+        int height;
+    };
+
     bool IsInventoryRearrangeInterfaceBlocked()
     {
         if (g_pNewUISystem == nullptr)
@@ -65,18 +85,66 @@ namespace
             || g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_PURCHASESHOP_INVENTORY) == true;
     }
 
-    bool CanPlaceItem(const std::vector<bool>& occupied, int columnCount, int rowCount, int column, int row, int width, int height)
+    int GetArrangeIndex(int column, int row, int columnCount)
     {
-        if (column + width > columnCount || row + height > rowCount)
+        return row * columnCount + column;
+    }
+
+    int GetArrangeArea(const ArrangeItem& item)
+    {
+        return item.width * item.height;
+    }
+
+    int GetArrangeArea(const ArrangeRect& rect)
+    {
+        return rect.width * rect.height;
+    }
+
+    bool IsArrangeRectContained(const ArrangeRect& inner, const ArrangeRect& outer)
+    {
+        return inner.x >= outer.x
+            && inner.y >= outer.y
+            && inner.x + inner.width <= outer.x + outer.width
+            && inner.y + inner.height <= outer.y + outer.height;
+    }
+
+    bool IsArrangeItemAtTarget(const ArrangeItem& item)
+    {
+        return item.sourceX == item.targetX && item.sourceY == item.targetY;
+    }
+
+    bool IsAllowedArrangeItemSize(int width, int height)
+    {
+        return (width == 1 && height == 1)
+            || (width == 2 && height == 2)
+            || (width == 1 && height == 3)
+            || (width == 2 && height == 3);
+    }
+
+    void OccupyArrangeCells(std::vector<DWORD>& occupied, int columnCount, const ArrangeItem& item, DWORD value)
+    {
+        for (int y = 0; y < item.height; ++y)
+        {
+            for (int x = 0; x < item.width; ++x)
+            {
+                occupied[GetArrangeIndex(item.sourceX + x, item.sourceY + y, columnCount)] = value;
+            }
+        }
+    }
+
+    bool CanPlaceArrangeItem(const std::vector<DWORD>& occupied, int columnCount, int rowCount, const ArrangeItem& item)
+    {
+        if (item.targetX + item.width > columnCount || item.targetY + item.height > rowCount)
         {
             return false;
         }
 
-        for (int y = 0; y < height; ++y)
+        for (int y = 0; y < item.height; ++y)
         {
-            for (int x = 0; x < width; ++x)
+            for (int x = 0; x < item.width; ++x)
             {
-                if (occupied[(row + y) * columnCount + column + x])
+                const DWORD cellKey = occupied[GetArrangeIndex(item.targetX + x, item.targetY + y, columnCount)];
+                if (cellKey != 0 && cellKey != item.key)
                 {
                     return false;
                 }
@@ -84,6 +152,170 @@ namespace
         }
 
         return true;
+    }
+
+    void RemoveContainedArrangeRects(std::vector<ArrangeRect>& freeRects)
+    {
+        for (size_t i = 0; i < freeRects.size(); ++i)
+        {
+            for (size_t j = i + 1; j < freeRects.size();)
+            {
+                if (IsArrangeRectContained(freeRects[i], freeRects[j]))
+                {
+                    freeRects.erase(freeRects.begin() + i);
+                    --i;
+                    break;
+                }
+                if (IsArrangeRectContained(freeRects[j], freeRects[i]))
+                {
+                    freeRects.erase(freeRects.begin() + j);
+                    continue;
+                }
+                ++j;
+            }
+        }
+    }
+
+    void SplitArrangeFreeRect(std::vector<ArrangeRect>& freeRects, size_t rectIndex, const ArrangeItem& item)
+    {
+        const ArrangeRect rect = freeRects[rectIndex];
+        freeRects.erase(freeRects.begin() + rectIndex);
+
+        const int rightWidth = rect.width - item.width;
+        if (rightWidth > 0)
+        {
+            freeRects.push_back({ item.targetX + item.width, item.targetY, rightWidth, item.height });
+        }
+
+        const int bottomHeight = rect.height - item.height;
+        if (bottomHeight > 0)
+        {
+            freeRects.push_back({ rect.x, item.targetY + item.height, rect.width, bottomHeight });
+        }
+
+        RemoveContainedArrangeRects(freeRects);
+    }
+
+    bool FindBestArrangeRect(const std::vector<ArrangeRect>& freeRects, const ArrangeItem& item, size_t& bestRectIndex)
+    {
+        bool found = false;
+        int bestWaste = 0;
+        ArrangeRect bestRect{};
+
+        for (size_t i = 0; i < freeRects.size(); ++i)
+        {
+            const ArrangeRect& rect = freeRects[i];
+            if (item.width > rect.width || item.height > rect.height)
+            {
+                continue;
+            }
+
+            const int waste = GetArrangeArea(rect) - GetArrangeArea(item);
+            if (!found
+                || waste < bestWaste
+                || (waste == bestWaste && rect.y < bestRect.y)
+                || (waste == bestWaste && rect.y == bestRect.y && rect.x < bestRect.x))
+            {
+                found = true;
+                bestWaste = waste;
+                bestRect = rect;
+                bestRectIndex = i;
+            }
+        }
+
+        return found;
+    }
+
+    bool ComputeArrangeTargets(std::vector<ArrangeItem>& items, int columnCount, int rowCount)
+    {
+        std::sort(items.begin(), items.end(), [](const ArrangeItem& left, const ArrangeItem& right)
+        {
+            const int leftArea = GetArrangeArea(left);
+            const int rightArea = GetArrangeArea(right);
+            if (leftArea != rightArea)
+            {
+                return leftArea > rightArea;
+            }
+            if (left.height != right.height)
+            {
+                return left.height > right.height;
+            }
+            if (left.width != right.width)
+            {
+                return left.width > right.width;
+            }
+            return left.sourceIndex < right.sourceIndex;
+        });
+
+        std::vector<ArrangeRect> freeRects;
+        freeRects.push_back({ 0, 0, columnCount, rowCount });
+
+        for (ArrangeItem& item : items)
+        {
+            size_t rectIndex = 0;
+            if (!FindBestArrangeRect(freeRects, item, rectIndex))
+            {
+                return false;
+            }
+
+            item.targetX = freeRects[rectIndex].x;
+            item.targetY = freeRects[rectIndex].y;
+            SplitArrangeFreeRect(freeRects, rectIndex, item);
+        }
+
+        return true;
+    }
+
+    bool GenerateArrangeMoves(std::vector<ArrangeItem> items, int columnCount, int rowCount, std::vector<SEASON3B::InventoryRearrangeMove>& moves)
+    {
+        std::sort(items.begin(), items.end(), [](const ArrangeItem& left, const ArrangeItem& right)
+        {
+            return left.sourceIndex < right.sourceIndex;
+        });
+
+        std::vector<DWORD> occupied(columnCount * rowCount, 0);
+        for (const ArrangeItem& item : items)
+        {
+            OccupyArrangeCells(occupied, columnCount, item, item.key);
+        }
+
+        while (true)
+        {
+            bool hasPendingItem = false;
+            bool movedItem = false;
+
+            for (ArrangeItem& item : items)
+            {
+                if (IsArrangeItemAtTarget(item))
+                {
+                    continue;
+                }
+
+                hasPendingItem = true;
+                if (!CanPlaceArrangeItem(occupied, columnCount, rowCount, item))
+                {
+                    continue;
+                }
+
+                OccupyArrangeCells(occupied, columnCount, item, 0);
+                item.sourceX = item.targetX;
+                item.sourceY = item.targetY;
+                OccupyArrangeCells(occupied, columnCount, item, item.key);
+
+                moves.push_back({ item.key, item.targetY * columnCount + item.targetX + MAX_EQUIPMENT });
+                movedItem = true;
+                break;
+            }
+
+            if (!hasPendingItem)
+            {
+                return true;
+            }
+            if (!movedItem)
+            {
+                return false;
+            }
+        }
     }
 }
 
@@ -104,6 +336,7 @@ CNewUIMyInventory::CNewUIMyInventory()
     m_bRepairEnableLevel = false;
     m_bMyShopOpen = false;
     m_bInventoryRearrangePending = false;
+    m_bInventoryRearrangeMoveInFlight = false;
 }
 
 CNewUIMyInventory::~CNewUIMyInventory()
@@ -895,6 +1128,8 @@ void CNewUIMyInventory::OpenningProcess()
 void CNewUIMyInventory::ClosingProcess()
 {
     m_bInventoryRearrangePending = false;
+    m_bInventoryRearrangeMoveInFlight = false;
+    m_InventoryRearrangeMoves.clear();
     m_pNewInventoryCtrl->BackupPickedItem();
     RepairEnable = 0;
     SetRepairMode(false);
@@ -1727,68 +1962,54 @@ bool CNewUIMyInventory::CanUseInventoryRearrange() const
         && IsInventoryRearrangeInterfaceBlocked() == false;
 }
 
-bool CNewUIMyInventory::FindRearrangeDestination(ITEM* pItem, int& targetIndex) const
+bool CNewUIMyInventory::BuildInventoryRearrangeMoves(std::vector<InventoryRearrangeMove>& moves) const
 {
-    if (pItem == nullptr || pItem->Type == -1 || m_pNewInventoryCtrl == nullptr)
+    if (m_pNewInventoryCtrl == nullptr)
     {
         return false;
     }
 
+    moves.clear();
     const int columnCount = m_pNewInventoryCtrl->GetNumberOfColumn();
     const int rowCount = m_pNewInventoryCtrl->GetNumberOfRow();
-    std::vector<bool> occupied(columnCount * rowCount, false);
+    std::vector<ArrangeItem> items;
 
     const size_t itemCount = m_pNewInventoryCtrl->GetNumberOfItems();
+    items.reserve(itemCount);
     for (size_t i = 0; i < itemCount; ++i)
     {
-        ITEM* pOtherItem = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
-        if (pOtherItem == nullptr || pOtherItem == pItem)
+        ITEM* pItem = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
+        if (pItem == nullptr || pItem->Type == -1)
         {
             continue;
         }
 
-        const ITEM_ATTRIBUTE* pOtherItemAttr = &ItemAttribute[pOtherItem->Type];
-        for (int y = 0; y < pOtherItemAttr->Height; ++y)
+        const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+        if (!IsAllowedArrangeItemSize(pItemAttr->Width, pItemAttr->Height))
         {
-            for (int x = 0; x < pOtherItemAttr->Width; ++x)
-            {
-                const int column = pOtherItem->x + x;
-                const int row = pOtherItem->y + y;
-                if (column >= 0 && column < columnCount && row >= 0 && row < rowCount)
-                {
-                    occupied[row * columnCount + column] = true;
-                }
-            }
+            return false;
         }
-    }
 
-    const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
-    const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
-    if (sourceIndex < MAX_EQUIPMENT)
-    {
-        return false;
-    }
-
-    const int sourceLocalIndex = sourceIndex - MAX_EQUIPMENT;
-
-    for (int row = 0; row < rowCount; ++row)
-    {
-        for (int column = 0; column < columnCount; ++column)
+        const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
+        if (sourceIndex < MAX_EQUIPMENT)
         {
-            const int localIndex = row * columnCount + column;
-            if (localIndex >= sourceLocalIndex)
-            {
-                return false;
-            }
-            if (CanPlaceItem(occupied, columnCount, rowCount, column, row, pItemAttr->Width, pItemAttr->Height))
-            {
-                targetIndex = localIndex + MAX_EQUIPMENT;
-                return true;
-            }
+            return false;
         }
+
+        items.push_back({
+            pItem->Key,
+            sourceIndex,
+            pItem->x,
+            pItem->y,
+            pItem->x,
+            pItem->y,
+            pItemAttr->Width,
+            pItemAttr->Height
+        });
     }
 
-    return false;
+    return ComputeArrangeTargets(items, columnCount, rowCount)
+        && GenerateArrangeMoves(items, columnCount, rowCount, moves);
 }
 
 void CNewUIMyInventory::ProcessInventoryRearrange()
@@ -1806,9 +2027,39 @@ void CNewUIMyInventory::ProcessInventoryRearrange()
         m_bInventoryRearrangePending = false;
         return;
     }
-    if (!TryMoveNextRearrangeItem())
+    if (m_bInventoryRearrangeMoveInFlight)
+    {
+        if (m_InventoryRearrangeMoves.empty())
+        {
+            m_bInventoryRearrangeMoveInFlight = false;
+            m_bInventoryRearrangePending = false;
+            return;
+        }
+
+        const InventoryRearrangeMove& move = m_InventoryRearrangeMoves.front();
+        ITEM* pItem = m_pNewInventoryCtrl->FindItemByKey(move.itemKey);
+        if (pItem == nullptr || m_pNewInventoryCtrl->GetIndexByItem(pItem) != move.targetIndex)
+        {
+            m_bInventoryRearrangeMoveInFlight = false;
+            m_bInventoryRearrangePending = false;
+            m_InventoryRearrangeMoves.clear();
+            return;
+        }
+
+        m_InventoryRearrangeMoves.erase(m_InventoryRearrangeMoves.begin());
+        m_bInventoryRearrangeMoveInFlight = false;
+    }
+
+    if (m_InventoryRearrangeMoves.empty())
     {
         m_bInventoryRearrangePending = false;
+        return;
+    }
+
+    if (!ExecuteNextInventoryRearrangeMove())
+    {
+        m_bInventoryRearrangePending = false;
+        m_InventoryRearrangeMoves.clear();
     }
 }
 
@@ -1819,69 +2070,59 @@ void CNewUIMyInventory::RequestInventoryRearrange()
         return;
     }
 
+    if (!BuildInventoryRearrangeMoves(m_InventoryRearrangeMoves))
+    {
+        return;
+    }
+
     m_bInventoryRearrangePending = true;
+    m_bInventoryRearrangeMoveInFlight = false;
     ProcessInventoryRearrange();
 }
 
-bool CNewUIMyInventory::TryMoveNextRearrangeItem()
+bool CNewUIMyInventory::ExecuteNextInventoryRearrangeMove()
 {
-    if (m_pNewInventoryCtrl == nullptr)
+    if (m_pNewInventoryCtrl == nullptr || m_InventoryRearrangeMoves.empty())
     {
         return false;
     }
 
-    std::vector<ITEM*> items;
-    const size_t itemCount = m_pNewInventoryCtrl->GetNumberOfItems();
-    items.reserve(itemCount);
-    for (size_t i = 0; i < itemCount; ++i)
+    const InventoryRearrangeMove& move = m_InventoryRearrangeMoves.front();
+    ITEM* pItem = m_pNewInventoryCtrl->FindItemByKey(move.itemKey);
+    if (pItem == nullptr)
     {
-        ITEM* pItem = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
-        if (pItem != nullptr)
-        {
-            items.push_back(pItem);
-        }
+        return false;
     }
 
-    std::sort(items.begin(), items.end(), [this](ITEM* pLeft, ITEM* pRight)
+    const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
+    if (sourceIndex == move.targetIndex)
     {
-        return m_pNewInventoryCtrl->GetIndexByItem(pLeft) < m_pNewInventoryCtrl->GetIndexByItem(pRight);
-    });
-
-    for (ITEM* pItem : items)
-    {
-        int targetIndex = -1;
-        if (!FindRearrangeDestination(pItem, targetIndex))
-        {
-            continue;
-        }
-
-        const int sourceIndex = m_pNewInventoryCtrl->GetIndexByItem(pItem);
-        if (!CNewUIInventoryCtrl::CreatePickedItem(m_pNewInventoryCtrl, pItem))
-        {
-            return false;
-        }
-
-        CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
-        if (pPickedItem == nullptr || pPickedItem->GetItem() == nullptr)
-        {
-            CNewUIInventoryCtrl::BackupPickedItem();
-            return false;
-        }
-
-        m_pNewInventoryCtrl->RemoveItem(pItem);
-        pPickedItem->HidePickedItem();
-
-        if (!SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, sourceIndex,
-            pPickedItem->GetItem(), STORAGE_TYPE::INVENTORY, targetIndex))
-        {
-            CNewUIInventoryCtrl::BackupPickedItem();
-            return false;
-        }
-
         return true;
     }
+    if (!CNewUIInventoryCtrl::CreatePickedItem(m_pNewInventoryCtrl, pItem))
+    {
+        return false;
+    }
 
-    return false;
+    CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+    if (pPickedItem == nullptr || pPickedItem->GetItem() == nullptr)
+    {
+        CNewUIInventoryCtrl::BackupPickedItem();
+        return false;
+    }
+
+    m_pNewInventoryCtrl->RemoveItem(pItem);
+    pPickedItem->HidePickedItem();
+
+    if (!SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, sourceIndex,
+        pPickedItem->GetItem(), STORAGE_TYPE::INVENTORY, move.targetIndex))
+    {
+        CNewUIInventoryCtrl::BackupPickedItem();
+        return false;
+    }
+
+    m_bInventoryRearrangeMoveInFlight = true;
+    return true;
 }
 
 void CNewUIMyInventory::RenderItemToolTip(int iSlotIndex) const

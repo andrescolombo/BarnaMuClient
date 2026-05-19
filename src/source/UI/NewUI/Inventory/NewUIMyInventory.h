@@ -14,10 +14,17 @@
 #include "UI/NewUI/Inventory/NewUIInventoryActionController.h"
 #include "GameLogic/Items/IInventoryActionContext.h"
 #include <span>
+#include <vector>
 #include "Core/Globals/_enum.h"
 
 namespace SEASON3B
 {
+    struct InventoryRearrangeMove
+    {
+        DWORD itemKey;
+        int targetIndex;
+    };
+
     class CNewUIMyInventory
         : public CNewUIObj
         , public INewUI3DRenderObj
@@ -96,6 +103,8 @@ namespace SEASON3B
         bool m_bRepairEnableLevel;
         bool m_bMyShopOpen;
         bool m_bInventoryRearrangePending;
+        bool m_bInventoryRearrangeMoveInFlight;
+        std::vector<InventoryRearrangeMove> m_InventoryRearrangeMoves;
 
     public:
         CNewUIMyInventory();
@@ -199,11 +208,11 @@ namespace SEASON3B
         bool EquipmentWindowProcess();
         bool InventoryProcess() const;
         bool BtnProcess();
+        bool BuildInventoryRearrangeMoves(std::vector<InventoryRearrangeMove>& moves) const;
         bool CanUseInventoryRearrange() const;
-        bool FindRearrangeDestination(ITEM* pItem, int& targetIndex) const;
+        bool ExecuteNextInventoryRearrangeMove();
         void ProcessInventoryRearrange();
         void RequestInventoryRearrange();
-        bool TryMoveNextRearrangeItem();
 
         void RenderItemToolTip(int iSlotIndex) const;
         bool CanOpenMyShopInterface();

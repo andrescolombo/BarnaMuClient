@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added an experimental inventory rearrange button that compacts main inventory items through normal server item-move requests.
+- Added an experimental inventory rearrange button that computes a compact target layout before moving items one at a time through normal server item-move requests.
 
 - Dimmed inventory equip-status slot overlays:
   - Red slot background still marks items for a different class.

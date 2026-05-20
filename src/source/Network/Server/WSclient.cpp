@@ -21,6 +21,7 @@
 
 #include "Audio/DSPlaySound.h"
 
+#include "Data/GameConfig/GameConfig.h"
 #include "GameLogic/Events/MatchEvent.h"
 #include "Engine/AI/GOBoid.h"
 #include "GameLogic/Quests/CSQuest.h"
@@ -7298,10 +7299,36 @@ void ReceiveStorageStatus(const BYTE* ReceiveBuffer)
     g_pStorageInventory->ProcessToReceiveStorageStatus(Data->Value);
 }
 
+namespace
+{
+    bool HandlePartyRequestByMuHelperMode(int requesterKey)
+    {
+        const int requestMode = GameConfig::GetInstance().GetPartyRequestMode();
+        if (requestMode == MUHelper::REQUEST_HANDLING_BLOCK)
+        {
+            SocketClient->ToGameServer()->SendPartyInviteResponse(false, requesterKey);
+            return true;
+        }
+
+        if (requestMode == MUHelper::REQUEST_HANDLING_AUTO)
+        {
+            SocketClient->ToGameServer()->SendPartyInviteResponse(true, requesterKey);
+            return true;
+        }
+
+        return false;
+    }
+}
+
 void ReceiveParty(const BYTE* ReceiveBuffer)
 {
     auto Data = (LPPHEADER_DEFAULT_KEY)ReceiveBuffer;
     PartyKey = ((int)(Data->KeyH) << 8) + Data->KeyL;
+
+    if (HandlePartyRequestByMuHelperMode(PartyKey))
+    {
+        return;
+    }
 
     SEASON3B::CreateMessageBox(MSGBOX_LAYOUT_CLASS(SEASON3B::CPartyMsgBoxLayout));
 }
@@ -7416,10 +7443,56 @@ void ReceivePartyGetItem(const BYTE* ReceiveBuffer)
 
 extern int ErrorMessage;
 
+namespace
+{
+    constexpr BYTE SOCIAL_REQUEST_REJECTED = 0x00;
+    constexpr BYTE SOCIAL_REQUEST_ACCEPTED = 0x01;
+
+    bool HandleFriendRequestByMuHelperMode(const wchar_t* requesterName)
+    {
+        const int requestMode = GameConfig::GetInstance().GetFriendRequestMode();
+        if (requestMode == MUHelper::REQUEST_HANDLING_BLOCK)
+        {
+            SocketClient->ToGameServer()->SendFriendAddResponse(SOCIAL_REQUEST_REJECTED, requesterName);
+            return true;
+        }
+
+        if (requestMode == MUHelper::REQUEST_HANDLING_AUTO)
+        {
+            SocketClient->ToGameServer()->SendFriendAddResponse(SOCIAL_REQUEST_ACCEPTED, requesterName);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool HandleGuildRequestByMuHelperMode(int requesterKey)
+    {
+        const int requestMode = GameConfig::GetInstance().GetGuildRequestMode();
+        if (requestMode == MUHelper::REQUEST_HANDLING_BLOCK)
+        {
+            SocketClient->ToGameServer()->SendGuildJoinResponse(false, requesterKey);
+            return true;
+        }
+
+        if (requestMode == MUHelper::REQUEST_HANDLING_AUTO)
+        {
+            SocketClient->ToGameServer()->SendGuildJoinResponse(true, requesterKey);
+            return true;
+        }
+
+        return false;
+    }
+}
+
 void ReceiveGuild(const BYTE* ReceiveBuffer)
 {
     auto Data = (LPPHEADER_DEFAULT_KEY)ReceiveBuffer;
     GuildPlayerKey = ((int)(Data->KeyH) << 8) + Data->KeyL;
+    if (HandleGuildRequestByMuHelperMode(GuildPlayerKey))
+    {
+        return;
+    }
 
     SEASON3B::CNewUICommonMessageBox* pMsgBox;
     SEASON3B::CreateMessageBox(MSGBOX_LAYOUT_CLASS(SEASON3B::CGuildRequestMsgBoxLayout), &pMsgBox);
@@ -9588,6 +9661,11 @@ void ReceiveRequestAcceptAddFriend(const BYTE* ReceiveBuffer)
     wchar_t szName[MAX_USERNAME_SIZE + 1] = { 0 };
     CMultiLanguage::ConvertFromUtf8(szName, Data->Name, MAX_USERNAME_SIZE);
     szName[MAX_USERNAME_SIZE] = '\0';
+
+    if (HandleFriendRequestByMuHelperMode(szName))
+    {
+        return;
+    }
 
     wchar_t szText[MAX_TEXT_LENGTH + 1] = { 0 };
     CMultiLanguage::ConvertFromUtf8(szText, Data->Name, MAX_USERNAME_SIZE);

@@ -3,7 +3,6 @@
 
 namespace MUHelper
 {
-
 	void ConfigDataSerDe::Serialize(const ConfigData& gameData, PRECEIVE_MUHELPER_DATA& netData)
 	{
 		memset(&netData, 0, sizeof(netData));

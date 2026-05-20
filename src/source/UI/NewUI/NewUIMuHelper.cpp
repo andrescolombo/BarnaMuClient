@@ -1,6 +1,7 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 #include <array>
 #include "I18N/All.h"
@@ -10,6 +11,7 @@
 #include "UI/NewUI/NewUISystem.h"
 #include "UI/NewUI/NewUIMuHelper.h"
 #include "Character/CharacterManager.h"
+#include "Data/GameConfig/GameConfig.h"
 #include "MUHelper/MuHelper.h"
 
 using namespace MUHelper;
@@ -39,9 +41,16 @@ enum ECheckBoxId: uint16_t
     CHECKBOX_ID_PICK_ZEN,
     CHECKBOX_ID_PICK_EXCELLENT,
     CHECKBOX_ID_ADD_OTHER_ITEM,
-    CHECKBOX_ID_AUTO_ACCEPT_FRIEND,
+    CHECKBOX_ID_FRIEND_REQUEST_SHOW,
+    CHECKBOX_ID_FRIEND_REQUEST_BLOCK,
+    CHECKBOX_ID_FRIEND_REQUEST_AUTO,
     CHECKBOX_ID_AUTO_DEFEND,
-    CHECKBOX_ID_AUTO_ACCEPT_GUILD,
+    CHECKBOX_ID_GUILD_REQUEST_SHOW,
+    CHECKBOX_ID_GUILD_REQUEST_BLOCK,
+    CHECKBOX_ID_GUILD_REQUEST_AUTO,
+    CHECKBOX_ID_PARTY_REQUEST_SHOW,
+    CHECKBOX_ID_PARTY_REQUEST_BLOCK,
+    CHECKBOX_ID_PARTY_REQUEST_AUTO,
     CHECKBOX_ID_DR_ATTACK_CEASE,
     CHECKBOX_ID_DR_ATTACK_AUTO,
     CHECKBOX_ID_DR_ATTACK_TOGETHER,
@@ -109,6 +118,44 @@ ConfigData _TempConfig;
 
 namespace
 {
+ConfigData _LastServerConfig;
+bool _HasLastServerConfig = false;
+
+constexpr int REQUEST_MODE_LABEL_X = 18;
+constexpr int REQUEST_MODE_ON_X = 68;
+constexpr int REQUEST_MODE_OFF_X = 100;
+constexpr int REQUEST_MODE_AUTO_X = 135;
+constexpr int FRIEND_REQUEST_MODE_Y = 80;
+constexpr int GUILD_REQUEST_MODE_Y = 97;
+constexpr int PARTY_REQUEST_MODE_Y = 114;
+constexpr int SELF_DEFENSE_Y = 142;
+constexpr int TEXT_ID_FRIEND_REQUEST_MODE = 13;
+constexpr int TEXT_ID_GUILD_REQUEST_MODE = 14;
+constexpr int TEXT_ID_PARTY_REQUEST_MODE = 15;
+
+BYTE ClampRequestMode(int iMode)
+{
+    if (iMode < REQUEST_HANDLING_SHOW || iMode > REQUEST_HANDLING_AUTO)
+    {
+        return REQUEST_HANDLING_SHOW;
+    }
+
+    return static_cast<BYTE>(iMode);
+}
+
+
+
+bool HasServerConfigChanged(const ConfigData& lhs, const ConfigData& rhs)
+{
+    PRECEIVE_MUHELPER_DATA lhsData;
+    PRECEIVE_MUHELPER_DATA rhsData;
+
+    ConfigDataSerDe::Serialize(lhs, lhsData);
+    ConfigDataSerDe::Serialize(rhs, rhsData);
+
+    return std::memcmp(&lhsData, &rhsData, sizeof(PRECEIVE_MUHELPER_DATA)) != 0;
+}
+
 int FindCharacterSkillSlotIndex(int iSkillType)
 {
     // Skill tooltips read CharacterAttribute->Skill[slot], so convert raw skill ids first.
@@ -143,6 +190,9 @@ CNewUIMuHelper::CNewUIMuHelper()
     m_iRenderSkillInfoType = 0;
     m_iRenderSkillInfoPosX = 0;
     m_iRenderSkillInfoPosY = 0;
+    m_byFriendRequestMode = REQUEST_HANDLING_SHOW;
+    m_byGuildRequestMode = REQUEST_HANDLING_SHOW;
+    m_byPartyRequestMode = REQUEST_HANDLING_SHOW;
 }
 
 CNewUIMuHelper::~CNewUIMuHelper()
@@ -292,9 +342,16 @@ void CNewUIMuHelper::InitCheckBox()
     InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + 30, m_Pos.y + 250, 15, 15, 0, &I18N::Game::AttackTogether, CHECKBOX_ID_DR_ATTACK_TOGETHER, 0);
 
     //--
-    InsertCheckBox(IMAGE_CHECKBOX_BTN, m_Pos.x + 18, m_Pos.y + 80, 15, 15, 0, &I18N::Game::AutoAcceptFriend, CHECKBOX_ID_AUTO_ACCEPT_FRIEND, 2);
-    InsertCheckBox(IMAGE_CHECKBOX_BTN, m_Pos.x + 18, m_Pos.y + 125, 15, 15, 0, &I18N::Game::PVPCounterattack, CHECKBOX_ID_AUTO_DEFEND, 2);
-    InsertCheckBox(IMAGE_CHECKBOX_BTN, m_Pos.x + 18, m_Pos.y + 97, 15, 15, 0, &I18N::Game::AutoAcceptGuildMember, CHECKBOX_ID_AUTO_ACCEPT_GUILD, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_ON_X, m_Pos.y + FRIEND_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOn, CHECKBOX_ID_FRIEND_REQUEST_SHOW, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_OFF_X, m_Pos.y + FRIEND_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOff, CHECKBOX_ID_FRIEND_REQUEST_BLOCK, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_AUTO_X, m_Pos.y + FRIEND_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeAuto, CHECKBOX_ID_FRIEND_REQUEST_AUTO, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_ON_X, m_Pos.y + GUILD_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOn, CHECKBOX_ID_GUILD_REQUEST_SHOW, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_OFF_X, m_Pos.y + GUILD_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOff, CHECKBOX_ID_GUILD_REQUEST_BLOCK, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_AUTO_X, m_Pos.y + GUILD_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeAuto, CHECKBOX_ID_GUILD_REQUEST_AUTO, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_ON_X, m_Pos.y + PARTY_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOn, CHECKBOX_ID_PARTY_REQUEST_SHOW, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_OFF_X, m_Pos.y + PARTY_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeOff, CHECKBOX_ID_PARTY_REQUEST_BLOCK, 2);
+    InsertCheckBox(IMAGE_MACROUI_HELPER_OPTIONBUTTON, m_Pos.x + REQUEST_MODE_AUTO_X, m_Pos.y + PARTY_REQUEST_MODE_Y, 15, 15, 0, &I18N::Game::RequestModeAuto, CHECKBOX_ID_PARTY_REQUEST_AUTO, 2);
+    InsertCheckBox(IMAGE_CHECKBOX_BTN, m_Pos.x + 18, m_Pos.y + SELF_DEFENSE_Y, 15, 15, 0, &I18N::Game::PVPCounterattack, CHECKBOX_ID_AUTO_DEFEND, 2);
 
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_POTION);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_LONG_DISTANCE);
@@ -310,9 +367,16 @@ void CNewUIMuHelper::InitCheckBox()
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_PICK_ZEN);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_PICK_EXCELLENT);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_ADD_OTHER_ITEM);
-    RegisterBoxCharacter(0xFF, CHECKBOX_ID_AUTO_ACCEPT_FRIEND);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_FRIEND_REQUEST_SHOW);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_FRIEND_REQUEST_BLOCK);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_FRIEND_REQUEST_AUTO);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_AUTO_DEFEND);
-    RegisterBoxCharacter(0xFF, CHECKBOX_ID_AUTO_ACCEPT_GUILD);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_SHOW);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_BLOCK);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_AUTO);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_SHOW);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_BLOCK);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_AUTO);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_FALLBACK_BASIC_ATTACK);
 
     RegisterBoxCharacter(Dark_Knight, CHECKBOX_ID_SKILL3_DELAY);
@@ -399,6 +463,9 @@ void CNewUIMuHelper::InitText()
     InsertText(m_Pos.x + 162, m_Pos.y + 230, L"s", 10, 0);
     InsertText(m_Pos.x + 18, m_Pos.y + 78, I18N::Game::Range, 11, 1); // Range
     InsertText(m_Pos.x + 18, m_Pos.y + 83, L"________", 12, 1);
+    InsertText(m_Pos.x + REQUEST_MODE_LABEL_X, m_Pos.y + FRIEND_REQUEST_MODE_Y + 3, I18N::Game::RequestModeFriend, TEXT_ID_FRIEND_REQUEST_MODE, 2);
+    InsertText(m_Pos.x + REQUEST_MODE_LABEL_X, m_Pos.y + GUILD_REQUEST_MODE_Y + 3, I18N::Game::RequestModeGuild, TEXT_ID_GUILD_REQUEST_MODE, 2);
+    InsertText(m_Pos.x + REQUEST_MODE_LABEL_X, m_Pos.y + PARTY_REQUEST_MODE_Y + 3, I18N::Game::RequestModeParty, TEXT_ID_PARTY_REQUEST_MODE, 2);
 
     RegisterTextCharacter(0xFF, 1);
     RegisterTextCharacter(0xFF, 2);
@@ -409,6 +476,9 @@ void CNewUIMuHelper::InitText()
     RegisterTextCharacter(0xFF, 8);
     RegisterTextCharacter(0xFF, 11);
     RegisterTextCharacter(0xFF, 12);
+    RegisterTextCharacter(0xFF, TEXT_ID_FRIEND_REQUEST_MODE);
+    RegisterTextCharacter(0xFF, TEXT_ID_GUILD_REQUEST_MODE);
+    RegisterTextCharacter(0xFF, TEXT_ID_PARTY_REQUEST_MODE);
 
     RegisterTextCharacter(Dark_Knight, 9);
     RegisterTextCharacter(Dark_Knight, 10);
@@ -904,12 +974,22 @@ void CNewUIMuHelper::ApplyConfigFromCheckbox(int iCheckboxId, bool bState)
         _TempConfig.bPickExtraItems = bState;
         break;
 
-    case CHECKBOX_ID_AUTO_ACCEPT_FRIEND:
-        _TempConfig.bAutoAcceptFriend = bState;
+    case CHECKBOX_ID_FRIEND_REQUEST_SHOW:
+    case CHECKBOX_ID_FRIEND_REQUEST_BLOCK:
+    case CHECKBOX_ID_FRIEND_REQUEST_AUTO:
+        ApplyFriendRequestMode(iCheckboxId);
         break;
 
-    case CHECKBOX_ID_AUTO_ACCEPT_GUILD:
-        _TempConfig.bAutoAcceptGuild = bState;
+    case CHECKBOX_ID_GUILD_REQUEST_SHOW:
+    case CHECKBOX_ID_GUILD_REQUEST_BLOCK:
+    case CHECKBOX_ID_GUILD_REQUEST_AUTO:
+        ApplyGuildRequestMode(iCheckboxId);
+        break;
+
+    case CHECKBOX_ID_PARTY_REQUEST_SHOW:
+    case CHECKBOX_ID_PARTY_REQUEST_BLOCK:
+    case CHECKBOX_ID_PARTY_REQUEST_AUTO:
+        ApplyPartyRequestMode(iCheckboxId);
         break;
 
     case CHECKBOX_ID_AUTO_DEFEND:
@@ -1054,6 +1134,9 @@ void CNewUIMuHelper::Reset()
     _TempConfig.bPickAncient = false;
     _TempConfig.bPickExtraItems = false;
     _TempConfig.aExtraItems.clear();
+    m_byFriendRequestMode = REQUEST_HANDLING_SHOW;
+    m_byGuildRequestMode = REQUEST_HANDLING_SHOW;
+    m_byPartyRequestMode = REQUEST_HANDLING_SHOW;
 
     ApplyConfig();
 }
@@ -1061,6 +1144,9 @@ void CNewUIMuHelper::Reset()
 void CNewUIMuHelper::LoadSavedConfig(const ConfigData& config)
 {
     _TempConfig = config;
+    _LastServerConfig = config;
+    _HasLastServerConfig = true;
+    LoadRequestModesFromConfig();
     ApplyConfig();
 }
 
@@ -1117,8 +1203,7 @@ void CNewUIMuHelper::ApplyConfig()
     m_CheckBoxList[CHECKBOX_ID_PICK_ANCIENT].box->RegisterBoxState(_TempConfig.bPickAncient);
     m_CheckBoxList[CHECKBOX_ID_ADD_OTHER_ITEM].box->RegisterBoxState(_TempConfig.bPickExtraItems);
 
-    m_CheckBoxList[CHECKBOX_ID_AUTO_ACCEPT_FRIEND].box->RegisterBoxState(_TempConfig.bAutoAcceptFriend);
-    m_CheckBoxList[CHECKBOX_ID_AUTO_ACCEPT_GUILD].box->RegisterBoxState(_TempConfig.bAutoAcceptGuild);
+    ApplyRequestModeBoxStates();
     m_CheckBoxList[CHECKBOX_ID_AUTO_DEFEND].box->RegisterBoxState(_TempConfig.bUseSelfDefense);
     m_CheckBoxList[CHECKBOX_ID_FALLBACK_BASIC_ATTACK].box->RegisterBoxState(_TempConfig.bFallbackBasicAttack);
 
@@ -1134,6 +1219,21 @@ void CNewUIMuHelper::InitConfig()
     Reset();
 
     g_pNewUIMuHelperExt->InitConfig();
+}
+
+void CNewUIMuHelper::LoadRequestModesFromConfig()
+{
+    m_byFriendRequestMode = ClampRequestMode(GameConfig::GetInstance().GetFriendRequestMode());
+    m_byGuildRequestMode = ClampRequestMode(GameConfig::GetInstance().GetGuildRequestMode());
+    m_byPartyRequestMode = ClampRequestMode(GameConfig::GetInstance().GetPartyRequestMode());
+}
+
+void CNewUIMuHelper::SaveRequestModesToConfig()
+{
+    GameConfig::GetInstance().SetFriendRequestMode(m_byFriendRequestMode);
+    GameConfig::GetInstance().SetGuildRequestMode(m_byGuildRequestMode);
+    GameConfig::GetInstance().SetPartyRequestMode(m_byPartyRequestMode);
+    GameConfig::GetInstance().Save();
 }
 
 void CNewUIMuHelper::SaveConfig()
@@ -1156,7 +1256,17 @@ void CNewUIMuHelper::SaveConfig()
     _TempConfig.aiBuff[1] = m_aiSelectedSkills[4] > 0 ? m_aiSelectedSkills[4] : 0;
     _TempConfig.aiBuff[2] = m_aiSelectedSkills[5] > 0 ? m_aiSelectedSkills[5] : 0;
 
-    g_MuHelper.Save(_TempConfig);
+    SaveRequestModesToConfig();
+    if (!_HasLastServerConfig || HasServerConfigChanged(_TempConfig, _LastServerConfig))
+    {
+        g_MuHelper.Save(_TempConfig);
+        _LastServerConfig = _TempConfig;
+        _HasLastServerConfig = true;
+    }
+    else
+    {
+        g_MuHelper.Load(_TempConfig);
+    }
 }
 
 float CNewUIMuHelper::GetLayerDepth()
@@ -1274,6 +1384,21 @@ bool CNewUIMuHelper::Render()
     DisableAlphaBlend();
 
     return true;
+}
+
+void CNewUIMuHelper::ApplyRequestModeBoxStates()
+{
+    m_CheckBoxList[CHECKBOX_ID_FRIEND_REQUEST_SHOW].box->RegisterBoxState(m_byFriendRequestMode == REQUEST_HANDLING_SHOW);
+    m_CheckBoxList[CHECKBOX_ID_FRIEND_REQUEST_BLOCK].box->RegisterBoxState(m_byFriendRequestMode == REQUEST_HANDLING_BLOCK);
+    m_CheckBoxList[CHECKBOX_ID_FRIEND_REQUEST_AUTO].box->RegisterBoxState(m_byFriendRequestMode == REQUEST_HANDLING_AUTO);
+
+    m_CheckBoxList[CHECKBOX_ID_GUILD_REQUEST_SHOW].box->RegisterBoxState(m_byGuildRequestMode == REQUEST_HANDLING_SHOW);
+    m_CheckBoxList[CHECKBOX_ID_GUILD_REQUEST_BLOCK].box->RegisterBoxState(m_byGuildRequestMode == REQUEST_HANDLING_BLOCK);
+    m_CheckBoxList[CHECKBOX_ID_GUILD_REQUEST_AUTO].box->RegisterBoxState(m_byGuildRequestMode == REQUEST_HANDLING_AUTO);
+
+    m_CheckBoxList[CHECKBOX_ID_PARTY_REQUEST_SHOW].box->RegisterBoxState(m_byPartyRequestMode == REQUEST_HANDLING_SHOW);
+    m_CheckBoxList[CHECKBOX_ID_PARTY_REQUEST_BLOCK].box->RegisterBoxState(m_byPartyRequestMode == REQUEST_HANDLING_BLOCK);
+    m_CheckBoxList[CHECKBOX_ID_PARTY_REQUEST_AUTO].box->RegisterBoxState(m_byPartyRequestMode == REQUEST_HANDLING_AUTO);
 }
 
 void CNewUIMuHelper::RenderBack(int x, int y, int width, int height)
@@ -1514,6 +1639,60 @@ void CNewUIMuHelper::RenderIconList()
             }
         }
     }
+}
+
+void CNewUIMuHelper::ApplyFriendRequestMode(int iCheckboxId)
+{
+    if (iCheckboxId == CHECKBOX_ID_FRIEND_REQUEST_BLOCK)
+    {
+        m_byFriendRequestMode = REQUEST_HANDLING_BLOCK;
+    }
+    else if (iCheckboxId == CHECKBOX_ID_FRIEND_REQUEST_AUTO)
+    {
+        m_byFriendRequestMode = REQUEST_HANDLING_AUTO;
+    }
+    else
+    {
+        m_byFriendRequestMode = REQUEST_HANDLING_SHOW;
+    }
+
+    ApplyRequestModeBoxStates();
+}
+
+void CNewUIMuHelper::ApplyGuildRequestMode(int iCheckboxId)
+{
+    if (iCheckboxId == CHECKBOX_ID_GUILD_REQUEST_BLOCK)
+    {
+        m_byGuildRequestMode = REQUEST_HANDLING_BLOCK;
+    }
+    else if (iCheckboxId == CHECKBOX_ID_GUILD_REQUEST_AUTO)
+    {
+        m_byGuildRequestMode = REQUEST_HANDLING_AUTO;
+    }
+    else
+    {
+        m_byGuildRequestMode = REQUEST_HANDLING_SHOW;
+    }
+
+    ApplyRequestModeBoxStates();
+}
+
+void CNewUIMuHelper::ApplyPartyRequestMode(int iCheckboxId)
+{
+    if (iCheckboxId == CHECKBOX_ID_PARTY_REQUEST_BLOCK)
+    {
+        m_byPartyRequestMode = REQUEST_HANDLING_BLOCK;
+    }
+    else if (iCheckboxId == CHECKBOX_ID_PARTY_REQUEST_AUTO)
+    {
+        m_byPartyRequestMode = REQUEST_HANDLING_AUTO;
+    }
+    else
+    {
+        m_byPartyRequestMode = REQUEST_HANDLING_SHOW;
+    }
+
+    ApplyRequestModeBoxStates();
 }
 
 void CNewUIMuHelper::RenderSelectedSkillInfo()

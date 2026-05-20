@@ -12902,4 +12902,22 @@
   <data name="Retrying in seconds" xml:space="preserve">
     <value>Retrying in %d seconds...</value>
   </data>
+  <data name="RequestModeOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="RequestModeOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="RequestModeAuto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="RequestModeFriend" xml:space="preserve">
+    <value>Friend</value>
+  </data>
+  <data name="RequestModeGuild" xml:space="preserve">
+    <value>Guild</value>
+  </data>
+  <data name="RequestModeParty" xml:space="preserve">
+    <value>Party</value>
+  </data>
 </root>

@@ -55,6 +55,9 @@ void GameConfig::Load()
     m_uiLocale = ReadString(CfgSectionUI, CfgKeyUILocale, CfgDefaultUILocale);
 
     m_zoom = ReadInt(CfgSectionCamera, CfgKeyZoom, CfgDefaultZoom);
+    m_friendRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyFriendRequestMode, CfgDefaultRequestMode);
+    m_guildRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyGuildRequestMode, CfgDefaultRequestMode);
+    m_partyRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyPartyRequestMode, CfgDefaultRequestMode);
 
     // Strip keys/sections we used to write but no longer use, so user config
     // files don't accumulate orphans. Append one line per retired key — no
@@ -93,6 +96,9 @@ void GameConfig::Save()
     WriteString(CfgSectionUI, CfgKeyUILocale, m_uiLocale);
 
     WriteInt(CfgSectionCamera, CfgKeyZoom, m_zoom);
+    WriteInt(CfgSectionMuHelper, CfgKeyFriendRequestMode, m_friendRequestMode);
+    WriteInt(CfgSectionMuHelper, CfgKeyGuildRequestMode, m_guildRequestMode);
+    WriteInt(CfgSectionMuHelper, CfgKeyPartyRequestMode, m_partyRequestMode);
 }
 
 void GameConfig::SetWindowSize(int width, int height)
@@ -154,6 +160,21 @@ void GameConfig::SetServerPort(int port)
 void GameConfig::SetZoom(int zoom)
 {
     m_zoom = zoom;
+}
+
+void GameConfig::SetFriendRequestMode(int mode)
+{
+    m_friendRequestMode = mode;
+}
+
+void GameConfig::SetGuildRequestMode(int mode)
+{
+    m_guildRequestMode = mode;
+}
+
+void GameConfig::SetPartyRequestMode(int mode)
+{
+    m_partyRequestMode = mode;
 }
 
 // Helper function to convert binary data to hex string

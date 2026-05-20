@@ -57,6 +57,10 @@
 | `Z` | Open / close Mu Helper configuration panel |
 | `F8` | Start / stop (play / pause) Mu Helper |
 
+In Mu Helper's Other Settings tab, friend, guild member, and party requests can
+be set to `On` to show the normal confirmation window, `Off` to reject requests
+automatically, or `Auto` to accept requests automatically.
+
 ## Chat
 
 | Key | Action |

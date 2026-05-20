@@ -58,6 +58,15 @@ public:
     int GetZoom() const { return m_zoom; }
     void SetZoom(int zoom);
 
+    // Mu Helper
+    int GetFriendRequestMode() const { return m_friendRequestMode; }
+    int GetGuildRequestMode() const { return m_guildRequestMode; }
+    int GetPartyRequestMode() const { return m_partyRequestMode; }
+
+    void SetFriendRequestMode(int mode);
+    void SetGuildRequestMode(int mode);
+    void SetPartyRequestMode(int mode);
+
     // Helpers
     static std::wstring BinaryToHex(const BYTE* data, DWORD size);
     static std::vector<BYTE> HexToBinary(const std::wstring& hex);
@@ -90,6 +99,9 @@ private:
     std::wstring m_uiLocale;
 
     int m_zoom;
+    int m_friendRequestMode;
+    int m_guildRequestMode;
+    int m_partyRequestMode;
 
     int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue);
     void WriteInt(const wchar_t* section, const wchar_t* key, int value);

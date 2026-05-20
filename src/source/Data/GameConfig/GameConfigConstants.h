@@ -9,6 +9,7 @@ namespace CfgSections
     inline constexpr wchar_t CfgSectionLogin[]      = L"LOGIN";
     inline constexpr wchar_t CfgSectionConnectionSettings[] = L"CONNECTION SETTINGS";
     inline constexpr wchar_t CfgSectionCamera[] = L"Camera";
+    inline constexpr wchar_t CfgSectionMuHelper[] = L"MuHelper";
 }
 
 namespace CfgKeys
@@ -37,6 +38,11 @@ namespace CfgKeys
 
     // Camera
     inline constexpr wchar_t CfgKeyZoom[] = L"Zoom";
+
+    // Mu Helper
+    inline constexpr wchar_t CfgKeyFriendRequestMode[] = L"FriendRequestMode";
+    inline constexpr wchar_t CfgKeyGuildRequestMode[] = L"GuildRequestMode";
+    inline constexpr wchar_t CfgKeyPartyRequestMode[] = L"PartyRequestMode";
 }
 
 namespace CfgDefaults
@@ -57,7 +63,7 @@ namespace CfgDefaults
     inline constexpr int CfgDefaultServerPort = 44406;
 
     inline constexpr int CfgDefaultZoom = 1735;  // OrbitalCamera DEFAULT_RADIUS — matches Default-cam camera-to-Hero distance
-
     // I18N locale code; "en" is the default the resx generator falls back to.
     inline constexpr wchar_t CfgDefaultUILocale[] = L"en";
+    inline constexpr int CfgDefaultRequestMode = 0;
 }

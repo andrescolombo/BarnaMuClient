@@ -50,6 +50,16 @@ namespace MUHelper
 		PET_ATTACK_TOGETHER = 0x02
 	};
 
+	enum ERequestHandlingMode : BYTE
+	{
+		REQUEST_HANDLING_SHOW = 0x00,
+		REQUEST_HANDLING_BLOCK = 0x01,
+		REQUEST_HANDLING_AUTO = 0x02
+	};
+
+	// Sentinel stored in aiSkill[0] when the user selects "Basic Attack".
+	constexpr uint32_t MUHELPER_BASIC_ATTACK_ID = 0xFFFFu;
+
 	typedef struct _PetAttackConfig
 	{
 		int iHuntingRange = 0;

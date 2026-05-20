@@ -4,7 +4,6 @@
 /*.dat
 *.sdf
 .tmp/
-.tmp\
 *.bak
 *.sbr
 *.tlog
@@ -13,8 +12,6 @@
 *.log
 *.pch
 *.recipe
-*.bsc
-*\.pch
 /*.pch
 *.iobj
 .build/

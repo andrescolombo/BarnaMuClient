@@ -371,13 +371,13 @@ void CNewUIMuHelper::InitCheckBox()
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_FRIEND_REQUEST_BLOCK);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_FRIEND_REQUEST_AUTO);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_AUTO_DEFEND);
+    RegisterBoxCharacter(0xFF, CHECKBOX_ID_FALLBACK_BASIC_ATTACK);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_SHOW);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_BLOCK);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_GUILD_REQUEST_AUTO);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_SHOW);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_BLOCK);
     RegisterBoxCharacter(0xFF, CHECKBOX_ID_PARTY_REQUEST_AUTO);
-    RegisterBoxCharacter(0xFF, CHECKBOX_ID_FALLBACK_BASIC_ATTACK);
 
     RegisterBoxCharacter(Dark_Knight, CHECKBOX_ID_SKILL3_DELAY);
     RegisterBoxCharacter(Dark_Knight, CHECKBOX_ID_SKILL3_CONDITION);
@@ -1134,6 +1134,8 @@ void CNewUIMuHelper::Reset()
     _TempConfig.bPickAncient = false;
     _TempConfig.bPickExtraItems = false;
     _TempConfig.aExtraItems.clear();
+
+    _TempConfig.bFallbackBasicAttack = true;
     m_byFriendRequestMode = REQUEST_HANDLING_SHOW;
     m_byGuildRequestMode = REQUEST_HANDLING_SHOW;
     m_byPartyRequestMode = REQUEST_HANDLING_SHOW;

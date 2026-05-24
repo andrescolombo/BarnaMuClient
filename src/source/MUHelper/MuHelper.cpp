@@ -1176,14 +1176,34 @@ namespace MUHelper
         int iDistance = ComputeDistanceBetween({ Hero->PositionX, Hero->PositionY }, { TargetX, TargetY });
         if (iDistance <= m_iObtainingDistance)
         {
+            // Pickup tolerance when a mob occupies the drop tile. The strict
+            // CheckTile (1.5) demands we stand right next to it, but the
+            // server accepts pickups from ~2.5 tiles away, and PathFinding2
+            // can't route us into a tile a monster is standing on. Try the
+            // request anyway when we're already within the server's reach.
+            constexpr float BLOCKED_PICKUP_RANGE = 2.5f;
+
             if (!CheckTile(Hero, &Hero->Object, 1.5f))
             {
-                // Common case: a monster is parked on top of the drop. Defer
-                // pickup *without* blacklisting so Attack() runs this tick to
-                // clear the blocker. Next round the drop becomes reachable
-                // and we re-target it.
                 if (IsMonsterOnTile(TargetX, TargetY))
                 {
+                    // Close enough for the server -- send pickup despite the
+                    // mob blocking the exact tile. This is what handles "many
+                    // mobs, most drops covered" packs.
+                    if (CheckTile(Hero, &Hero->Object, BLOCKED_PICKUP_RANGE))
+                    {
+                        if (SendGetItem == -1)
+                        {
+                            SendGetItem = m_iCurrentItem;
+                            SocketClient->ToGameServer()->SendPickupItemRequest(m_iCurrentItem);
+                            DeleteItem(m_iCurrentItem);
+                        }
+                        return 1;
+                    }
+
+                    // Still too far. Defer without blacklisting so Attack()
+                    // runs this tick to clear the blocker, and the next round
+                    // can either kill it or close the gap.
                     m_iCurrentItem = MAX_ITEMS;
                     m_iLastObtainItem = MAX_ITEMS;
                     m_iObtainStuckTicks = 0;

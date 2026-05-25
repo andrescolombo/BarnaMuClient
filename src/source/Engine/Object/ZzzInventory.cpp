@@ -2205,6 +2205,17 @@ namespace
         }
     }
 
+    int GetItemTotalDpsForTooltip(const ITEM* ip)
+    {
+        if (ip == nullptr || ip->WeaponSpeed <= 0)
+            return 0;
+
+        int dmgMin = 0;
+        int dmgMax = 0;
+        GetItemAttackRangeForTooltip(ip, dmgMin, dmgMax);
+        return (dmgMin + dmgMax) * ip->WeaponSpeed / 2;
+    }
+
     int GetItemDefenseForTooltip(const ITEM* ip)
     {
         int defense = ip->Defense;
@@ -4097,6 +4108,7 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
     if (ip->DamageMin)
     {
         int minindex = 0, maxindex = 0, magicalindex = 0;
+        bool bWeaponBranch = false;
 
         if (Level >= ip->Jewel_Of_Harmony_OptionLevel)
         {
@@ -4134,6 +4146,7 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
                 }
                 else
                 {
+                bWeaponBranch = true;
                 if (DamageMin + minindex >= DamageMax + maxindex)
                     mu_swprintf(TextList[TextNum], L"%ls: %d ~ %d", I18N::Game::Lookup(40 + p->TwoHand), DamageMax + maxindex, DamageMax + maxindex);
                 else
@@ -4170,6 +4183,28 @@ void RenderItemInfo(int sx, int sy, ITEM* ip, bool Sell, int Inventype, bool bIt
             }
 
             TextNum++;
+
+            if (bWeaponBranch && p->WeaponSpeed > 0)
+            {
+                int normalDPS = (DamageMin + DamageMax) * p->WeaponSpeed / 2;
+                int bonusDPS  = (minindex + maxindex) * p->WeaponSpeed / 2;
+                int totalDPS  = normalDPS + bonusDPS;
+
+                if (bonusDPS > 0)
+                    mu_swprintf(TextList[TextNum], L"DPS: %d (Base %d + Bonus %d)", totalDPS, normalDPS, bonusDPS);
+                else
+                    mu_swprintf(TextList[TextNum], L"DPS: %d", totalDPS);
+
+                TextListColor[TextNum] = (bonusDPS > 0) ? TEXT_COLOR_YELLOW : TEXT_COLOR_WHITE;
+                TextBold[TextNum] = false;
+
+                if (g_pTooltipCompareEquipped != nullptr)
+                {
+                    ApplyTooltipStatCompareColor(TextNum, totalDPS, GetItemTotalDpsForTooltip(g_pTooltipCompareEquipped));
+                }
+
+                TextNum++;
+            }
         }
         else
         {

@@ -111,6 +111,11 @@ namespace MUHelper
 		netData.UseDarkSpirits = gameData.bUseDarkRaven ? 1 : 0;
 		netData.PetAttack = static_cast<BYTE>(gameData.iDarkRavenMode);
 
+		netData.HuntingRange = static_cast<BYTE>(gameData.iHuntingRange & 0x0F);
+		netData.ObtainRange = static_cast<BYTE>(gameData.iObtainingRange & 0x0F);
+		netData.DistanceMin = static_cast<WORD>(gameData.iMaxSecondsAway & 0xFFFF);
+		netData.LongDistanceAttack = gameData.bLongRangeCounterAttack ? 1 : 0;
+
 		netData.RepairItem = gameData.bRepairItem ? 1 : 0;
 		netData.ObtainRange = static_cast<BYTE>(gameData.iObtainingRange & 0x0F);
 		netData.PickAllNearItems = gameData.bPickAllItems ? 1 : 0;
@@ -199,6 +204,11 @@ namespace MUHelper
 		gameData.bSupportParty = (bool)netData.Party;
 		gameData.bAutoHealParty = (bool)netData.PreferenceOfPartyHeal;
 		gameData.iHealPartyThreshold = static_cast<int>(netData.HPStatusOfPartyMembers) * 10;
+
+		gameData.iHuntingRange = static_cast<int>(netData.HuntingRange);
+		gameData.iObtainingRange = static_cast<int>(netData.ObtainRange);
+		gameData.iMaxSecondsAway = static_cast<int>(netData.DistanceMin);
+		gameData.bLongRangeCounterAttack = (bool)netData.LongDistanceAttack;
 
 		gameData.bUseDarkRaven = (bool)netData.UseDarkSpirits;
 		gameData.iDarkRavenMode = static_cast<int>(netData.PetAttack);

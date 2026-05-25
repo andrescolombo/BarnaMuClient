@@ -419,6 +419,14 @@ bool NewRenderCharacterScene(HDC hDC)
         g_pOption->Render();
         EndBitmap();
     }
+    if (g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_VISUAL_QUALITY_OPTION))
+    {
+        g_pVisualQuality->UpdateMouseEvent();
+        g_pVisualQuality->UpdateKeyEvent();
+        BeginBitmap();
+        g_pVisualQuality->Render();
+        EndBitmap();
+    }
 
     EndOpengl();
 

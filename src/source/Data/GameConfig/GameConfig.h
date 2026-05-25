@@ -44,9 +44,11 @@ public:
     // Connection
     std::wstring GetServerIP() const { return m_serverIP; }
     int GetServerPort() const { return m_serverPort; }
+    const std::wstring& GetForgotPasswordURL() const { return m_forgotPasswordURL; }
 
     void SetServerIP(const std::wstring& ip);
     void SetServerPort(int port);
+    void SetForgotPasswordURL(const std::wstring& url) { m_forgotPasswordURL = url; }
 
     // UI — I18N locale code ("en", "de", ...) for the typed translation
     // accessors. Distinct from GetLanguageSelection above, which is the
@@ -57,6 +59,17 @@ public:
     // Camera
     int GetZoom() const { return m_zoom; }
     void SetZoom(int zoom);
+
+    // Graphics — Visual Quality
+    int  GetAnisotropy()  const { return m_anisotropy; }
+    bool GetMipmap()      const { return m_mipmap; }
+    bool GetVSync()       const { return m_vsync; }
+    int  GetMSAA()        const { return m_msaa; }
+
+    void SetAnisotropy(int level);
+    void SetMipmap(bool enabled);
+    void SetVSync(bool enabled);
+    void SetMSAA(int samples);
 
     // Mu Helper
     int GetFriendRequestMode() const { return m_friendRequestMode; }
@@ -95,6 +108,12 @@ private:
 
     std::wstring m_serverIP;
     int m_serverPort;
+    std::wstring m_forgotPasswordURL;
+
+    int  m_anisotropy = 0;
+    bool m_mipmap     = false;
+    bool m_vsync      = true;
+    int  m_msaa       = 0;
 
     std::wstring m_uiLocale;
 

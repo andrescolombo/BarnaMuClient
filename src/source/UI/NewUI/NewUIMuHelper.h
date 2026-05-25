@@ -217,9 +217,9 @@ namespace SEASON3B
         int m_iSelectedSkillSlot;
         std::array<int, MAX_SKILLS_SLOT> m_aiSelectedSkills;
 
-        BYTE m_byFriendRequestMode;
-        BYTE m_byGuildRequestMode;
-        BYTE m_byPartyRequestMode;
+        BYTE m_byFriendRequestMode = MUHelper::REQUEST_HANDLING_SHOW;
+        BYTE m_byGuildRequestMode  = MUHelper::REQUEST_HANDLING_SHOW;
+        BYTE m_byPartyRequestMode  = MUHelper::REQUEST_HANDLING_SHOW;
     };
 
     class CNewUIMuHelperSkillList : public CNewUIObj

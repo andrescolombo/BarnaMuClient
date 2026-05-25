@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "turbojpeg.h"
 #include "Render/Sprites/GlobalBitmap.h"
+#include "Data/GameConfig/GameConfig.h"
 
 #include <algorithm>
 #include <array>
@@ -573,6 +574,129 @@ GLuint CGlobalBitmap::FindAvailableTextureIndex(GLuint uiSeed)
     return uiSeed + 1;
 }
 
+// ---------------------------------------------------------------------------
+// Visual quality helpers
+// ---------------------------------------------------------------------------
+
+bool CGlobalBitmap::IsWorldTexture(GLuint uiBitmapIndex)
+{
+    const bool inFont   = (uiBitmapIndex >= BITMAP_FONT_BEGIN   && uiBitmapIndex <= BITMAP_FONT_END);
+    const bool inCursor = (uiBitmapIndex >= BITMAP_CURSOR_BEGIN && uiBitmapIndex <= BITMAP_CURSOR_END);
+    const bool inUI     = (uiBitmapIndex >= BITMAP_INTERFACE_TEXTURE_BEGIN
+                        && uiBitmapIndex <= BITMAP_INTERFACE_TEXTURE_END);
+    return !(inFont || inCursor || inUI);
+}
+
+bool CGlobalBitmap::IsMipmappableWorldTexture(GLuint uiBitmapIndex)
+{
+    // Only safe ranges: tile, grass, water, player textures.
+    // Effects and item atlases are excluded to avoid neighbor-sprite bleeding.
+    return (uiBitmapIndex >= BITMAP_MAPTILE_BEGIN       && uiBitmapIndex <= BITMAP_MAPTILE_END)
+        || (uiBitmapIndex >= BITMAP_MAPGRASS_BEGIN      && uiBitmapIndex <= BITMAP_MAPGRASS_END)
+        || (uiBitmapIndex >= BITMAP_WATER_BEGIN         && uiBitmapIndex <= BITMAP_WATER_END)
+        || (uiBitmapIndex >= BITMAP_PLAYER_TEXTURE_BEGIN && uiBitmapIndex <= BITMAP_PLAYER_TEXTURE_END);
+}
+
+bool CGlobalBitmap::SupportsAnisotropicFiltering()
+{
+    static bool s_checked  = false;
+    static bool s_supports = false;
+    if (!s_checked)
+    {
+        const char* ext = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        s_supports = (ext != nullptr && strstr(ext, "GL_EXT_texture_filter_anisotropic") != nullptr);
+        s_checked  = true;
+    }
+    return s_supports;
+}
+
+float CGlobalBitmap::GetRequestedAnisotropy()
+{
+    if (!SupportsAnisotropicFiltering())
+        return 1.0f;
+
+    const int requested = GameConfig::GetInstance().GetAnisotropy();
+    if (requested <= 0)
+        return 1.0f;
+
+    static float s_hwMax = 0.0f;
+    if (s_hwMax == 0.0f)
+        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &s_hwMax);
+
+    const float want = static_cast<float>(requested);
+    return (s_hwMax > 0.0f) ? std::min(want, s_hwMax) : want;
+}
+
+void CGlobalBitmap::GetEffectiveTextureFilter(GLuint idx, GLuint requested,
+                                              GLuint& minFilter, GLuint& magFilter,
+                                              bool& wantMipmaps)
+{
+    wantMipmaps = false;
+
+    if (!IsWorldTexture(idx))
+    {
+        // UI/font/cursor textures — keep caller's filter unchanged.
+        minFilter = requested;
+        magFilter = requested;
+        return;
+    }
+
+    const bool mipmapEnabled = GameConfig::GetInstance().GetMipmap();
+
+    if (mipmapEnabled && IsMipmappableWorldTexture(idx))
+    {
+        // Trilinear for safe-to-mipmap world textures (NPOT check is done at upload time).
+        minFilter  = GL_LINEAR_MIPMAP_LINEAR;
+        magFilter  = GL_LINEAR;
+        wantMipmaps = true;
+    }
+    else
+    {
+        // Bilinear for all other world textures.
+        minFilter = GL_LINEAR;
+        magFilter = GL_LINEAR;
+    }
+}
+
+void CGlobalBitmap::ApplyTextureParameters(GLuint idx, GLuint uiFilter, GLuint uiWrapMode, bool mipmapsReady)
+{
+    GLuint minFilter = uiFilter;
+    GLuint magFilter = uiFilter;
+    bool   wantMipmaps = false;
+
+    GetEffectiveTextureFilter(idx, uiFilter, minFilter, magFilter, wantMipmaps);
+
+    // If the config requests trilinear but no mipmap pyramid was actually generated
+    // (e.g. NPOT-padded upload), fall back to bilinear so we don't get a black texture.
+    if (wantMipmaps && !mipmapsReady)
+        minFilter = GL_LINEAR;
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(magFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLint>(uiWrapMode));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLint>(uiWrapMode));
+
+    const float aniso = GetRequestedAnisotropy();
+    if (aniso > 1.0f && IsWorldTexture(idx))
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+}
+
+void CGlobalBitmap::ReapplyAllTextureParameters()
+{
+    for (auto& [index, pBitmap] : m_mapBitmap)
+    {
+        if (pBitmap && pBitmap->TextureNumber != 0)
+        {
+            glBindTexture(GL_TEXTURE_2D, pBitmap->TextureNumber);
+            // Pass the bitmap's actual mipmap state so trilinear is only used
+            // on textures that truly have a complete mipmap pyramid.
+            ApplyTextureParameters(index, GL_NEAREST, GL_CLAMP_TO_EDGE, pBitmap->HasMipmaps);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+
 bool CGlobalBitmap::OpenJpegTurbo(GLuint uiBitmapIndex, const std::wstring& filename, GLuint uiFilter, GLuint uiWrapMode)
 {
     std::wstring filename_ozj;
@@ -645,6 +769,7 @@ bool CGlobalBitmap::OpenJpegTurbo(GLuint uiBitmapIndex, const std::wstring& file
     pNewBitmap->Height = static_cast<float>(textureHeight);
     pNewBitmap->Components = 3;
     pNewBitmap->Ref = 1;
+    pNewBitmap->HasMipmaps = false; // set after POT check below
 
     const auto textureBufferSize = static_cast<std::size_t>(textureWidth) * static_cast<std::size_t>(textureHeight) * 3u;
     pNewBitmap->BufferStorage.resize(textureBufferSize);
@@ -669,21 +794,32 @@ bool CGlobalBitmap::OpenJpegTurbo(GLuint uiBitmapIndex, const std::wstring& file
         memcpy(pNewBitmap->Buffer, decompressedBuffer.data(), static_cast<std::size_t>(jpegHeight) * static_cast<std::size_t>(jpegWidth) * 3u);
     }
 
+    // Decide mipmap eligibility before upload.
+    // Mipmaps are only safe when the source image is already power-of-two
+    // (no uninitialized padding bytes pulled into lower mip levels).
+    GLuint minFilter = uiFilter, magFilter = uiFilter;
+    bool   wantMipmaps = false;
+    GetEffectiveTextureFilter(uiBitmapIndex, uiFilter, minFilter, magFilter, wantMipmaps);
+
+    const bool isPOT = (jpegWidth == textureWidth && jpegHeight == textureHeight);
+    if (!isPOT)
+        wantMipmaps = false; // NPOT padded — skip mipmap generation to avoid edge seams.
+
     glGenTextures(1, &(pNewBitmap->TextureNumber));
 
     glBindTexture(GL_TEXTURE_2D, pNewBitmap->TextureNumber);
 
+    if (wantMipmaps)
+        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
+
     glTexImage2D(GL_TEXTURE_2D, 0, 3, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, pNewBitmap->Buffer);
+
+    // Record actual mipmap state before moving the bitmap into the map.
+    pNewBitmap->HasMipmaps = wantMipmaps;
 
     m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, std::move(pNewBitmap)));
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, uiFilter);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, uiFilter);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, uiWrapMode);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, uiWrapMode);
+    ApplyTextureParameters(uiBitmapIndex, uiFilter, uiWrapMode, wantMipmaps);
 
     return true;
 }
@@ -734,6 +870,7 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::wstring& filename, 
     pNewBitmap->Height = static_cast<float>(Height);
     pNewBitmap->Components = 4;
     pNewBitmap->Ref = 1;
+    pNewBitmap->HasMipmaps = false; // set after POT check below
 
     const std::size_t BufferSize = static_cast<std::size_t>(Width) * static_cast<std::size_t>(Height) * 4u;
     pNewBitmap->BufferStorage.resize(BufferSize);
@@ -758,23 +895,32 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::wstring& filename, 
         }
     }
 
+    // Decide mipmap eligibility before upload.
+    GLuint minFilter = uiFilter, magFilter = uiFilter;
+    bool   wantMipmaps = false;
+    GetEffectiveTextureFilter(uiBitmapIndex, uiFilter, minFilter, magFilter, wantMipmaps);
+
+    const bool isPOT = (nx == Width && ny == Height);
+    if (!isPOT)
+        wantMipmaps = false; // NPOT padded — skip mipmap generation to avoid edge seams.
+
     glGenTextures(1, &(pNewBitmap->TextureNumber));
 
     glBindTexture(GL_TEXTURE_2D, pNewBitmap->TextureNumber);
 
+    if (wantMipmaps)
+        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
+
     glTexImage2D(GL_TEXTURE_2D, 0, 4, Width, Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pNewBitmap->Buffer);
+
+    // Record actual mipmap state before moving the bitmap into the map.
+    pNewBitmap->HasMipmaps = wantMipmaps;
 
     m_mapBitmap.insert(type_bitmap_map::value_type(uiBitmapIndex, std::move(pNewBitmap)));
 
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, uiFilter);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, uiFilter);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, uiWrapMode);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, uiWrapMode);
+    ApplyTextureParameters(uiBitmapIndex, uiFilter, uiWrapMode, wantMipmaps);
 
     return true;
 }

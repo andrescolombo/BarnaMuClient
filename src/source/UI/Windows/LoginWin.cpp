@@ -25,6 +25,7 @@
 
 #include "Data/GameConfig/GameConfig.h"
 #include "Data/GameConfig/GameConfigConstants.h"
+#include <shellapi.h>
 
 #define	LIW_ACCOUNT		0
 #define	LIW_PASSWORD	1
@@ -111,6 +112,8 @@ void CLoginWin::Create()
         m_aBtnRememberMe.SetCheck(true);
     }
 
+    m_bShowForgotLink = !GameConfig::GetInstance().GetForgotPasswordURL().empty();
+
     this->FirstLoad = 1;
 }
 
@@ -138,6 +141,14 @@ void CLoginWin::SetPosition(int x, int y)
 	m_aBtn[LIW_OK].SetPosition(x + 150, y + 178);
 	m_aBtn[LIW_CANCEL].SetPosition(x + 211, y + 178);
 	m_aBtnRememberMe.SetPosition(x + 109, y + 156);
+
+	if (m_bShowForgotLink)
+	{
+		m_rcForgotLink.left   = int((x + 30)  / g_fScreenRate_x);
+		m_rcForgotLink.right  = int((x + 125) / g_fScreenRate_x);
+		m_rcForgotLink.top    = int((y + 180) / g_fScreenRate_y);
+		m_rcForgotLink.bottom = int((y + 196) / g_fScreenRate_y);
+	}
 }
 
 void CLoginWin::Show(bool bShow)
@@ -188,6 +199,21 @@ void CLoginWin::UpdateWhileActive(double)
 		m_RememberMe = m_aBtnRememberMe.IsCheck();
 		GameConfig::GetInstance().SetRememberMe(m_RememberMe != 0);
 	}
+
+	if (m_bShowForgotLink)
+	{
+		long cx = CInput::Instance().GetCursorX();
+		long cy = CInput::Instance().GetCursorY();
+		m_bForgotLinkHovered = cx >= m_rcForgotLink.left && cx <= m_rcForgotLink.right
+		                    && cy >= m_rcForgotLink.top  && cy <= m_rcForgotLink.bottom;
+		bool bLButtonDown = CInput::Instance().IsKeyDown(VK_LBUTTON) != 0;
+		if (m_bForgotLinkHovered && bLButtonDown && !m_bLButtonWasDown)
+		{
+			const std::wstring& url = GameConfig::GetInstance().GetForgotPasswordURL();
+			ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+		}
+		m_bLButtonWasDown = bLButtonDown;
+	}
 }
 
 void CLoginWin::UpdateWhileShow(double dDeltaTick)
@@ -226,6 +252,12 @@ void CLoginWin::RenderControls()
     g_pRenderText->RenderText(int((baseX + 111) / g_fScreenRate_x), int((baseY + 80) / g_fScreenRate_y), szServerName);
 
     g_pRenderText->RenderText(int((baseX + 130) / g_fScreenRate_x), int((baseY + 159) / g_fScreenRate_y), L"Remember me?");
+
+    if (m_bShowForgotLink)
+    {
+        g_pRenderText->SetTextColor(m_bForgotLinkHovered ? 0xFFCCEEFF : 0xFF8899CC);
+        g_pRenderText->RenderText(int((baseX + 30) / g_fScreenRate_x), int((baseY + 183) / g_fScreenRate_y), L"Forgot password?");
+    }
 }
 
 void CLoginWin::RequestLogin()

@@ -80,6 +80,7 @@ CNewUISystem::CNewUISystem()
     m_pNewCommandWindow = nullptr;
     m_pNewWindowMenu = nullptr;
     m_pNewOptionWindow = nullptr;
+    m_pNewVisualQualityWindow = nullptr;
     m_pNewHeroPositionInfo = nullptr;
     m_pNewHelpWindow = nullptr;
     m_pNewItemExplanationWindow = nullptr;
@@ -146,6 +147,12 @@ bool CNewUISystem::Create()
         return false;
     }
 
+    m_pNewVisualQualityWindow = new CNewUIVisualQualityWindow;
+    if (m_pNewVisualQualityWindow->Create(m_pNewUIMng, (640 / 2) - (190 / 2), 30) == false)
+    {
+        return false;
+    }
+
     m_pNewSlideWindow = new CNewUISlideWindow;
     if (m_pNewSlideWindow->Create(m_pNewUIMng) == false)
     {
@@ -163,6 +170,7 @@ void CNewUISystem::Release()
     UnloadMainSceneInterface();
 
     SAFE_DELETE(m_pNewSlideWindow);
+    SAFE_DELETE(m_pNewVisualQualityWindow);
     SAFE_DELETE(m_pNewOptionWindow);
     SAFE_DELETE(m_pNewChatLogWindow);
     SAFE_DELETE(m_pNewSystemLogWindow);
@@ -965,6 +973,10 @@ void CNewUISystem::Show(DWORD dwKey)
     {
         g_pOption->OpenningProcess();
     }
+    else if (dwKey == INTERFACE_VISUAL_QUALITY_OPTION)
+    {
+        g_pVisualQuality->OpenningProcess();
+    }
     else if (dwKey == INTERFACE_HELP)
     {
         Hide(INTERFACE_MOVEMAP);
@@ -1392,6 +1404,10 @@ void CNewUISystem::Hide(DWORD dwKey)
     }
     else if (dwKey == INTERFACE_OPTION)
     {
+    }
+    else if (dwKey == INTERFACE_VISUAL_QUALITY_OPTION)
+    {
+        g_pVisualQuality->ClosingProcess();
     }
     else if (dwKey == INTERFACE_HERO_POSITION_INFO)
     {
@@ -2246,6 +2262,11 @@ CNewUIWindowMenu* CNewUISystem::GetUI_NewWindowMenu() const
 CNewUIOptionWindow* CNewUISystem::GetUI_NewOptionWindow() const
 {
     return m_pNewOptionWindow;
+}
+
+CNewUIVisualQualityWindow* CNewUISystem::GetUI_NewVisualQualityWindow() const
+{
+    return m_pNewVisualQualityWindow;
 }
 
 CNewUIHeroPositionInfo* CNewUISystem::GetUI_NewHeroPositionInfo() const

@@ -376,6 +376,7 @@ namespace SEASON3B
         static CALLBACK_RESULT ChooseServerBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
         static CALLBACK_RESULT ChooseCharacterBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
         static CALLBACK_RESULT OptionBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
+        static CALLBACK_RESULT VisualOptionBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
         static CALLBACK_RESULT CancelBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
 
     private:
@@ -389,6 +390,7 @@ namespace SEASON3B
         CNewUIMessageBoxButton m_BtnChooseServer;
         CNewUIMessageBoxButton m_BtnChooseCharacter;
         CNewUIMessageBoxButton m_BtnOption;
+        CNewUIMessageBoxButton m_BtnVisualOption;
         CNewUIMessageBoxButton m_BtnCancel;
     };
 

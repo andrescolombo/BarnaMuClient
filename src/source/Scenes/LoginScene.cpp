@@ -476,6 +476,12 @@ bool NewRenderLogInScene(HDC hDC)
         g_pOption->UpdateKeyEvent();
         g_pOption->Render();
     }
+    if (g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_VISUAL_QUALITY_OPTION))
+    {
+        g_pVisualQuality->UpdateMouseEvent();
+        g_pVisualQuality->UpdateKeyEvent();
+        g_pVisualQuality->Render();
+    }
 
     EndBitmap();
 

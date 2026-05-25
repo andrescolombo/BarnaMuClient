@@ -42,6 +42,7 @@
 #include "UI/NewUI/HUD/NewUICommandWindow.h"
 #include "UI/NewUI/Dialogs/NewUIWindowMenu.h"
 #include "UI/NewUI/Options/NewUIOptionWindow.h"
+#include "UI/NewUI/Options/NewUIVisualQualityWindow.h"
 #include "UI/NewUI/HUD/NewUIHeroPositionInfo.h"
 #include "UI/NewUI/Dialogs/NewUIHelpWindow.h"
 #include "UI/NewUI/Inventory/NewUIItemExplanationWindow.h"
@@ -180,6 +181,7 @@ namespace SEASON3B
         CNewUIHeroPositionInfo* m_pNewHeroPositionInfo;
         CNewUIWindowMenu* m_pNewWindowMenu;
         CNewUIOptionWindow* m_pNewOptionWindow;
+        CNewUIVisualQualityWindow* m_pNewVisualQualityWindow;
         CNewUIHelpWindow* m_pNewHelpWindow;
         CNewUIItemExplanationWindow* m_pNewItemExplanationWindow;
         CNewUISetItemExplanation* m_pNewSetItemExplanation;
@@ -261,6 +263,7 @@ namespace SEASON3B
         CNewUIHeroPositionInfo* GetUI_NewHeroPositionInfo() const;
         CNewUIWindowMenu* GetUI_NewWindowMenu() const;
         CNewUIOptionWindow* GetUI_NewOptionWindow() const;
+        CNewUIVisualQualityWindow* GetUI_NewVisualQualityWindow() const;
         CNewUIHelpWindow* GetUI_NewHelpWindow() const;
         CNewUIItemExplanationWindow* GetUI_NewItemExplanationWindow() const;
         CNewUISetItemExplanation* GetUI_NewSetItemExplanation() const;
@@ -347,6 +350,7 @@ namespace SEASON3B
 #define g_pCommandWindow SEASON3B::CNewUISystem::GetInstance()->GetUI_NewCommandWindow()
 #define g_pWindowMenu SEASON3B::CNewUISystem::GetInstance()->GetUI_NewWindowMenu()
 #define g_pOption SEASON3B::CNewUISystem::GetInstance()->GetUI_NewOptionWindow()
+#define g_pVisualQuality SEASON3B::CNewUISystem::GetInstance()->GetUI_NewVisualQualityWindow()
 #define g_pHeroPositionInfo SEASON3B::CNewUISystem::GetInstance()->GetUI_NewHeroPositionInfo()
 #define g_pHelp SEASON3B::CNewUISystem::GetInstance()->GetUI_NewHelpWindow()
 #define g_pItemExplanation SEASON3B::CNewUISystem::GetInstance()->GetUI_NewItemExplanationWindow()

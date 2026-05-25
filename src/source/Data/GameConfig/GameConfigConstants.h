@@ -30,8 +30,15 @@ namespace CfgKeys
     inline constexpr wchar_t CfgKeyEncryptedPassword[] = L"EncryptedPassword";
 
     // Connection
-    inline constexpr wchar_t CfgKeyServerIP[]   = L"ServerIP";
-    inline constexpr wchar_t CfgKeyServerPort[] = L"ServerPort";
+    inline constexpr wchar_t CfgKeyServerIP[]            = L"ServerIP";
+    inline constexpr wchar_t CfgKeyServerPort[]           = L"ServerPort";
+    inline constexpr wchar_t CfgKeyForgotPasswordURL[]    = L"ForgotPasswordURL";
+
+    // Graphics — Visual Quality
+    inline constexpr wchar_t CfgKeyAnisotropy[] = L"Anisotropy";
+    inline constexpr wchar_t CfgKeyMipmap[]     = L"Mipmap";
+    inline constexpr wchar_t CfgKeyVSync[]      = L"VSync";
+    inline constexpr wchar_t CfgKeyMSAA[]       = L"MSAA";
 
     // UI
     inline constexpr wchar_t CfgKeyUILocale[] = L"Locale";
@@ -60,7 +67,13 @@ namespace CfgDefaults
     inline constexpr wchar_t CfgDefaultEncryptedPassword[] = L"";
 
     inline constexpr wchar_t CfgDefaultServerIP[] = L"127.127.127.127";
-    inline constexpr int CfgDefaultServerPort = 44406;
+    inline constexpr int     CfgDefaultServerPort = 44406;
+
+    // Graphics — Visual Quality defaults (conservative: match current baseline)
+    inline constexpr int  CfgDefaultAnisotropy = 0;     // 0 = off (1.0f)
+    inline constexpr bool CfgDefaultMipmap     = false; // off — current renderer baseline is GL_NEAREST
+    inline constexpr bool CfgDefaultVSync      = true;
+    inline constexpr int  CfgDefaultMSAA       = 0;     // off
 
     inline constexpr int CfgDefaultZoom = 1735;  // OrbitalCamera DEFAULT_RADIUS — matches Default-cam camera-to-Hero distance
     // I18N locale code; "en" is the default the resx generator falls back to.

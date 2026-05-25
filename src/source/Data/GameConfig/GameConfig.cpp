@@ -49,8 +49,14 @@ void GameConfig::Load()
     m_encryptedUsername = ReadString(CfgSectionLogin, CfgKeyEncryptedUsername, CfgDefaultEncryptedUsername);
     m_encryptedPassword = ReadString(CfgSectionLogin, CfgKeyEncryptedPassword, CfgDefaultEncryptedPassword);
 
-    m_serverIP   = ReadString(CfgSectionConnectionSettings, CfgKeyServerIP, CfgDefaultServerIP);
-    m_serverPort = ReadInt(CfgSectionConnectionSettings, CfgKeyServerPort, CfgDefaultServerPort);
+    m_serverIP           = ReadString(CfgSectionConnectionSettings, CfgKeyServerIP, CfgDefaultServerIP);
+    m_serverPort         = ReadInt(CfgSectionConnectionSettings, CfgKeyServerPort, CfgDefaultServerPort);
+    m_forgotPasswordURL  = ReadString(CfgSectionConnectionSettings, CfgKeyForgotPasswordURL, CfgDefaultForgotPasswordURL);
+
+    m_anisotropy = ReadInt(CfgSectionGraphics, CfgKeyAnisotropy, CfgDefaultAnisotropy);
+    m_mipmap     = ReadBool(CfgSectionGraphics, CfgKeyMipmap, CfgDefaultMipmap);
+    m_vsync      = ReadBool(CfgSectionGraphics, CfgKeyVSync, CfgDefaultVSync);
+    m_msaa       = ReadInt(CfgSectionGraphics, CfgKeyMSAA, CfgDefaultMSAA);
 
     m_uiLocale = ReadString(CfgSectionUI, CfgKeyUILocale, CfgDefaultUILocale);
 
@@ -69,7 +75,7 @@ void GameConfig::Load()
     RemoveObsoleteKey(CfgSectionAudio,    L"VolumeLevel");    // legacy single-volume key
     RemoveObsoleteKey(CfgSectionLogin,    L"Version");        // launcher metadata, never read by client
     RemoveObsoleteKey(CfgSectionLogin,    L"TestVersion");    // launcher metadata, never read by client
-    RemoveObsoleteSection(CfgSectionGraphics);                // empty after RenderTextType + ColorDepth removal
+    // NOTE: CfgSectionGraphics is now used by Visual Quality settings — do NOT remove it.
     RemoveObsoleteSection(L"PARTITION");                      // launcher metadata, never read by client
 }
 
@@ -92,6 +98,12 @@ void GameConfig::Save()
 
     WriteString(CfgSectionConnectionSettings, CfgKeyServerIP, m_serverIP);
     WriteInt(CfgSectionConnectionSettings, CfgKeyServerPort, m_serverPort);
+    WriteString(CfgSectionConnectionSettings, CfgKeyForgotPasswordURL, m_forgotPasswordURL);
+
+    WriteInt(CfgSectionGraphics, CfgKeyAnisotropy, m_anisotropy);
+    WriteBool(CfgSectionGraphics, CfgKeyMipmap, m_mipmap);
+    WriteBool(CfgSectionGraphics, CfgKeyVSync, m_vsync);
+    WriteInt(CfgSectionGraphics, CfgKeyMSAA, m_msaa);
 
     WriteString(CfgSectionUI, CfgKeyUILocale, m_uiLocale);
 
@@ -160,6 +172,26 @@ void GameConfig::SetServerPort(int port)
 void GameConfig::SetZoom(int zoom)
 {
     m_zoom = zoom;
+}
+
+void GameConfig::SetAnisotropy(int level)
+{
+    m_anisotropy = level;
+}
+
+void GameConfig::SetMipmap(bool enabled)
+{
+    m_mipmap = enabled;
+}
+
+void GameConfig::SetVSync(bool enabled)
+{
+    m_vsync = enabled;
+}
+
+void GameConfig::SetMSAA(int samples)
+{
+    m_msaa = samples;
 }
 
 void GameConfig::SetFriendRequestMode(int mode)

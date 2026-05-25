@@ -17,6 +17,11 @@ protected:
     CButton     m_aBtnRememberMe;
     CUITextInputBox* m_pUsernameInputBox, * m_pPasswordInputBox;
 
+    RECT m_rcForgotLink{};
+    bool m_bForgotLinkHovered = false;
+    bool m_bShowForgotLink    = false;
+    bool m_bLButtonWasDown    = false;
+
 public:
     CLoginWin();
     virtual ~CLoginWin();

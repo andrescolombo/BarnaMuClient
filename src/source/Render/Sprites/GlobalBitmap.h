@@ -31,6 +31,7 @@ struct BITMAP_t
     bool IsHair;
     BYTE* Buffer;
     std::vector<std::uint8_t> BufferStorage;
+    bool HasMipmaps; // true when GL_GENERATE_MIPMAP was set before glTexImage2D
 
 private:
     friend class CBitmapCache;
@@ -149,6 +150,19 @@ protected:
     void ExchangeExt(IN const std::wstring& in_filepath, IN const std::wstring& ext, OUT std::wstring& out_filepath);
 
     bool Save_Image(const std::wstring& src, const std::wstring& dest, int cDumpHeader);
+
+    // Visual quality helpers -------------------------------------------------
+    static bool  IsWorldTexture(GLuint uiBitmapIndex);
+    static bool  IsMipmappableWorldTexture(GLuint uiBitmapIndex);
+    static bool  SupportsAnisotropicFiltering();
+    static float GetRequestedAnisotropy();
+    static void  GetEffectiveTextureFilter(GLuint idx, GLuint requested,
+                                           GLuint& minFilter, GLuint& magFilter,
+                                           bool& wantMipmaps);
+    static void  ApplyTextureParameters(GLuint idx, GLuint uiFilter, GLuint uiWrapMode, bool mipmapsReady = false);
+
+public:
+    void ReapplyAllTextureParameters();
 };
 
 extern CGlobalBitmap Bitmaps;

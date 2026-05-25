@@ -2251,6 +2251,7 @@ bool SEASON3B::CSystemMenuMsgBox::Update()
     m_BtnChooseServer.Update();
     m_BtnChooseCharacter.Update();
     m_BtnOption.Update();
+    // m_BtnVisualOption.Update();
     m_BtnCancel.Update();
     return true;
 }
@@ -2292,6 +2293,7 @@ void SEASON3B::CSystemMenuMsgBox::RenderButtons()
     m_BtnChooseServer.Render();
     m_BtnChooseCharacter.Render();
     m_BtnOption.Render();
+    // m_BtnVisualOption.Render();
     m_BtnCancel.Render();
 }
 
@@ -2302,6 +2304,7 @@ void SEASON3B::CSystemMenuMsgBox::SetAddCallbackFunc()
     AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::ChooseServerBtnDown, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_CHOOSESERVER);
     AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::ChooseCharacterBtnDown, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_CHOOSECHARACTER);
     AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::OptionBtnDown, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_OPTION);
+    AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::VisualOptionBtnDown, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_VISUAL_OPTION);
     AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::CancelBtnDown, MSGBOX_EVENT_USER_COMMON_CANCEL);
     AddCallbackFunc(SEASON3B::CSystemMenuMsgBox::CancelBtnDown, MSGBOX_EVENT_PRESSKEY_ESC);
 }
@@ -2479,6 +2482,16 @@ CALLBACK_RESULT SEASON3B::CSystemMenuMsgBox::ChooseCharacterBtnDown(class CNewUI
 CALLBACK_RESULT SEASON3B::CSystemMenuMsgBox::OptionBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam)
 {
     g_pNewUISystem->Show(SEASON3B::INTERFACE_OPTION);
+
+    PlayBuffer(SOUND_CLICK01);
+    g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_DESTROY);
+
+    return CALLBACK_BREAK;
+}
+
+CALLBACK_RESULT SEASON3B::CSystemMenuMsgBox::VisualOptionBtnDown(class CNewUIMessageBoxBase* pOwner, const leaf::xstreambuf& xParam)
+{
+    g_pNewUISystem->Show(SEASON3B::INTERFACE_VISUAL_QUALITY_OPTION);
 
     PlayBuffer(SOUND_CLICK01);
     g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_DESTROY);

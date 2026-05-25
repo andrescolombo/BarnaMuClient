@@ -296,6 +296,21 @@ namespace MUHelper
         return static_cast<int>(std::ceil(std::sqrt(iDx * iDx + iDy * iDy)));
     }
 
+    int CMuHelper::ComputeDistanceByRange(int iRange)
+    {
+        return ComputeDistanceBetween({ 0, 0 }, { iRange, iRange });
+    }
+
+    int CMuHelper::GetBasicAttackIntervalMs() const
+    {
+        // Mimic Webzen swing cadence: ~1.0 swings/s at AttackSpeed=0, scaling
+        // linearly with the stat, clamped at 10 swings/s.
+        const int as = CharacterAttribute ? CharacterAttribute->AttackSpeed : 0;
+        int ms = 1000 - (as * 2);
+        if (ms < 100) ms = 100;
+        return ms;
+    }
+
     int CMuHelper::GetNearestTarget()
     {
         int iClosestMonsterId = -1;
@@ -1030,10 +1045,18 @@ namespace MUHelper
         // In range -- replicate the main-loop basic-attack handoff
         // (ZzzInterface.cpp:7966-8000). Action() with MOVEMENT_ATTACK sends
         // the SendHitRequest packet and plays the swing animation.
+        // Throttle to character AttackSpeed so we don't spam hits faster
+        // than the swing animation cadence.
+        const DWORD nowTick = GetTickCount();
+        if (nowTick - m_dwLastBasicHitTick < static_cast<DWORD>(GetBasicAttackIntervalMs()))
+        {
+            return 1;
+        }
         Hero->MovementType = MOVEMENT_ATTACK;
         ActionTarget = iCharIndex;
         Attacking = 1;
         Action(Hero, &Hero->Object, true);
+        m_dwLastBasicHitTick = nowTick;
         return 1;
     }
 

@@ -34,11 +34,12 @@ namespace
     constexpr int CB_X_LOCAL = 150;
     constexpr int CB_SIZE    = 15;
 
-    // Combo dimensions
-    constexpr int COMBO_X_LOCAL   = 20;
-    constexpr int COMBO_W         = 150;
-    constexpr int COMBO_H         = 16;
-    constexpr int COMBO_MAX_ITEMS = 5;
+    // Cycle-arrow value selector dimensions
+    constexpr int COMBO_X_LOCAL = 20;
+    constexpr int COMBO_W       = 150;
+    constexpr int COMBO_H       = 16;
+    constexpr int ARROW_W       = 16;
+    constexpr int ARROW_H       = 16;
 
     // Separator lines
     constexpr int SEP_X_LOCAL = 18;
@@ -120,20 +121,6 @@ bool CNewUIVisualQualityWindow::Create(CNewUIManager* pNewUIMng, int x, int y)
     m_iAnisotropyIdx = AnisotropyValueToIndex(cfg.GetAnisotropy());
     m_iMSAAIdx       = MSAAValueToIndex(cfg.GetMSAA());
 
-    m_AnisotropyCombo.Setup(
-        m_Pos.x + COMBO_X_LOCAL,
-        m_Pos.y + ROW_ANISO_CMB_Y,
-        COMBO_W, COMBO_H,
-        s_AnisoLabels, ANISO_COUNT,
-        m_iAnisotropyIdx, COMBO_MAX_ITEMS);
-
-    m_MSAACombo.Setup(
-        m_Pos.x + COMBO_X_LOCAL,
-        m_Pos.y + ROW_MSAA_CMB_Y,
-        COMBO_W, COMBO_H,
-        s_MSAALabels, MSAA_COUNT,
-        m_iMSAAIdx, COMBO_MAX_ITEMS);
-
     Show(false);
     return true;
 }
@@ -153,8 +140,6 @@ void CNewUIVisualQualityWindow::SetPos(int x, int y)
 {
     m_Pos.x = x;
     m_Pos.y = y;
-    m_AnisotropyCombo.SetPos(m_Pos.x + COMBO_X_LOCAL, m_Pos.y + ROW_ANISO_CMB_Y);
-    m_MSAACombo.SetPos(m_Pos.x + COMBO_X_LOCAL, m_Pos.y + ROW_MSAA_CMB_Y);
 }
 
 void CNewUIVisualQualityWindow::LoadImages()
@@ -184,18 +169,6 @@ void CNewUIVisualQualityWindow::SetButtonInfo()
 
 bool CNewUIVisualQualityWindow::UpdateMouseEvent()
 {
-    // Combo boxes first — their dropdown may overflow below the window.
-    if (m_MSAACombo.UpdateMouseEvent())
-    {
-        m_iMSAAIdx = m_MSAACombo.GetSelectedIndex();
-        OnMSAAChanged();
-    }
-    if (m_AnisotropyCombo.UpdateMouseEvent())
-    {
-        m_iAnisotropyIdx = m_AnisotropyCombo.GetSelectedIndex();
-        OnAnisotropyChanged();
-    }
-
     if (m_BtnClose.UpdateMouseEvent())
     {
         g_pNewUISystem->Hide(SEASON3B::INTERFACE_VISUAL_QUALITY_OPTION);
@@ -260,17 +233,10 @@ void CNewUIVisualQualityWindow::OpenningProcess()
     m_bVSync         = cfg.GetVSync();
     m_iAnisotropyIdx = AnisotropyValueToIndex(cfg.GetAnisotropy());
     m_iMSAAIdx       = MSAAValueToIndex(cfg.GetMSAA());
-
-    m_AnisotropyCombo.SetSelectedIndex(m_iAnisotropyIdx);
-    m_AnisotropyCombo.Close();
-    m_MSAACombo.SetSelectedIndex(m_iMSAAIdx);
-    m_MSAACombo.Close();
 }
 
 void CNewUIVisualQualityWindow::ClosingProcess()
 {
-    m_AnisotropyCombo.Close();
-    m_MSAACombo.Close();
 }
 
 // ---------------------------------------------------------------------------
@@ -337,7 +303,15 @@ void CNewUIVisualQualityWindow::RenderContents()
     py = static_cast<float>(m_Pos.y + ROW_ANISO_LBL_Y);
     RenderImage(VQ_IMG_POINT, px, py, 10.f, 10.f);
     g_pRenderText->RenderText(m_Pos.x + TEXT_X_LOCAL, m_Pos.y + ROW_ANISO_LBL_Y + 2, L"Anisotropy");
-    m_AnisotropyCombo.Render();
+    // < value > selector
+    {
+        const int leftX  = m_Pos.x + COMBO_X_LOCAL;
+        const int rightX = m_Pos.x + COMBO_X_LOCAL + COMBO_W - ARROW_W;
+        const int valueX = m_Pos.x + COMBO_X_LOCAL + COMBO_W / 2 - 12;
+        g_pRenderText->RenderText(leftX,  m_Pos.y + ROW_ANISO_CMB_Y, L"<");
+        g_pRenderText->RenderText(rightX, m_Pos.y + ROW_ANISO_CMB_Y, L">");
+        g_pRenderText->RenderText(valueX, m_Pos.y + ROW_ANISO_CMB_Y, s_AnisoLabels[m_iAnisotropyIdx]);
+    }
 
     // --- VSync row ---
     py = static_cast<float>(m_Pos.y + ROW_VSYNC_Y);
@@ -352,7 +326,14 @@ void CNewUIVisualQualityWindow::RenderContents()
     py = static_cast<float>(m_Pos.y + ROW_MSAA_LBL_Y);
     RenderImage(VQ_IMG_POINT, px, py, 10.f, 10.f);
     g_pRenderText->RenderText(m_Pos.x + TEXT_X_LOCAL, m_Pos.y + ROW_MSAA_LBL_Y + 2, L"MSAA");
-    m_MSAACombo.Render();
+    {
+        const int leftX  = m_Pos.x + COMBO_X_LOCAL;
+        const int rightX = m_Pos.x + COMBO_X_LOCAL + COMBO_W - ARROW_W;
+        const int valueX = m_Pos.x + COMBO_X_LOCAL + COMBO_W / 2 - 12;
+        g_pRenderText->RenderText(leftX,  m_Pos.y + ROW_MSAA_CMB_Y, L"<");
+        g_pRenderText->RenderText(rightX, m_Pos.y + ROW_MSAA_CMB_Y, L">");
+        g_pRenderText->RenderText(valueX, m_Pos.y + ROW_MSAA_CMB_Y, s_MSAALabels[m_iMSAAIdx]);
+    }
 
     // --- Restart note ---
     g_pRenderText->SetTextColor(200, 150, 50, 255); // amber hint
@@ -388,6 +369,39 @@ void CNewUIVisualQualityWindow::HandleCheckboxInput()
     {
         m_bVSync = !m_bVSync;
         OnVSyncChanged();
+        return;
+    }
+
+    // Anisotropy cycle arrows
+    const int aniL = m_Pos.x + COMBO_X_LOCAL;
+    const int aniR = m_Pos.x + COMBO_X_LOCAL + COMBO_W - ARROW_W;
+    if (CheckMouseIn(aniL, m_Pos.y + ROW_ANISO_CMB_Y, ARROW_W, ARROW_H))
+    {
+        m_iAnisotropyIdx = (m_iAnisotropyIdx + ANISO_COUNT - 1) % ANISO_COUNT;
+        OnAnisotropyChanged();
+        return;
+    }
+    if (CheckMouseIn(aniR, m_Pos.y + ROW_ANISO_CMB_Y, ARROW_W, ARROW_H))
+    {
+        m_iAnisotropyIdx = (m_iAnisotropyIdx + 1) % ANISO_COUNT;
+        OnAnisotropyChanged();
+        return;
+    }
+
+    // MSAA cycle arrows
+    const int msaaL = m_Pos.x + COMBO_X_LOCAL;
+    const int msaaR = m_Pos.x + COMBO_X_LOCAL + COMBO_W - ARROW_W;
+    if (CheckMouseIn(msaaL, m_Pos.y + ROW_MSAA_CMB_Y, ARROW_W, ARROW_H))
+    {
+        m_iMSAAIdx = (m_iMSAAIdx + MSAA_COUNT - 1) % MSAA_COUNT;
+        OnMSAAChanged();
+        return;
+    }
+    if (CheckMouseIn(msaaR, m_Pos.y + ROW_MSAA_CMB_Y, ARROW_W, ARROW_H))
+    {
+        m_iMSAAIdx = (m_iMSAAIdx + 1) % MSAA_COUNT;
+        OnMSAAChanged();
+        return;
     }
 }
 

@@ -160,6 +160,7 @@ protected:
                                            GLuint& minFilter, GLuint& magFilter,
                                            bool& wantMipmaps);
     static void  ApplyTextureParameters(GLuint idx, GLuint uiFilter, GLuint uiWrapMode, bool mipmapsReady = false);
+    static void  ReapplyTextureFilterAndAniso(GLuint idx, bool mipmapsReady);
 
 public:
     void ReapplyAllTextureParameters();

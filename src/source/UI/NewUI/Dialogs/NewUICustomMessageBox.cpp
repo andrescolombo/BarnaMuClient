@@ -2231,7 +2231,7 @@ bool SEASON3B::CSystemMenuMsgBox::Create(float fPriority)
     x = (SCREEN_WIDTH / 2) - (MSGBOX_WIDTH / 2);
     y = 100;
     width = MSGBOX_WIDTH;
-    height = MSGBOX_TOP_HEIGHT + (5 * MSGBOX_MIDDLE_HEIGHT) + MSGBOX_BOTTOM_HEIGHT;
+    height = MSGBOX_TOP_HEIGHT + (6 * MSGBOX_MIDDLE_HEIGHT) + MSGBOX_BOTTOM_HEIGHT;
 
     CNewUIMessageBoxBase::Create(x, y, width, height, fPriority);
 
@@ -2251,7 +2251,7 @@ bool SEASON3B::CSystemMenuMsgBox::Update()
     m_BtnChooseServer.Update();
     m_BtnChooseCharacter.Update();
     m_BtnOption.Update();
-    // m_BtnVisualOption.Update();
+    m_BtnVisualOption.Update();
     m_BtnCancel.Update();
     return true;
 }
@@ -2277,7 +2277,7 @@ void SEASON3B::CSystemMenuMsgBox::RenderFrame()
     RenderImage(CNewUIMessageBoxMng::IMAGE_MSGBOX_TOP, x, y, width, height);
 
     x = GetPos().x; y += MSGBOX_TOP_HEIGHT; width = MSGBOX_WIDTH; height = MSGBOX_MIDDLE_HEIGHT;
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         RenderImage(CNewUIMessageBoxMng::IMAGE_MSGBOX_MIDDLE, x, y, width, height);
         y += height;
@@ -2293,7 +2293,7 @@ void SEASON3B::CSystemMenuMsgBox::RenderButtons()
     m_BtnChooseServer.Render();
     m_BtnChooseCharacter.Render();
     m_BtnOption.Render();
-    // m_BtnVisualOption.Render();
+    m_BtnVisualOption.Render();
     m_BtnCancel.Render();
 }
 
@@ -2335,6 +2335,10 @@ void SEASON3B::CSystemMenuMsgBox::SetButtonInfo()
     y += 30.f;
     m_BtnOption.SetInfo(CNewUIMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY, x, y, width, height, CNewUIMessageBoxButton::MSGBOX_BTN_SIZE_EMPTY);
     m_BtnOption.SetText(I18N::Game::Option385);
+
+    y += 30.f;
+    m_BtnVisualOption.SetInfo(CNewUIMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY, x, y, width, height, CNewUIMessageBoxButton::MSGBOX_BTN_SIZE_EMPTY);
+    m_BtnVisualOption.SetText(L"Visual Settings");
 
     y += 30.f;
     m_BtnCancel.SetInfo(CNewUIMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY, x, y, width, height, CNewUIMessageBoxButton::MSGBOX_BTN_SIZE_EMPTY);
@@ -2379,6 +2383,11 @@ CALLBACK_RESULT SEASON3B::CSystemMenuMsgBox::LButtonUp(class CNewUIMessageBoxBas
         if (pMsgBox->m_BtnOption.IsMouseIn() == true)
         {
             g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_OPTION);
+            return CALLBACK_BREAK;
+        }
+        if (pMsgBox->m_BtnVisualOption.IsMouseIn() == true)
+        {
+            g_MessageBox->SendEvent(pOwner, MSGBOX_EVENT_USER_CUSTOM_SYSTEMMENU_VISUAL_OPTION);
             return CALLBACK_BREAK;
         }
         if (pMsgBox->m_BtnCancel.IsMouseIn() == true)

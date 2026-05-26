@@ -737,7 +737,8 @@ int GetFPSLimit()
     return GetDeviceCaps(g_hDC, VREFRESH);
 }
 
-#ifdef LDS_ADD_MULTISAMPLEANTIALIASING
+BOOL g_bSupportedMSAA = FALSE;
+
 BOOL InitGLMultisample(HINSTANCE hInstance, HWND hWnd, PIXELFORMATDESCRIPTOR pfd, int iRequestMSAAValue, int& OutiPixelFormat)
 {
     BOOL bIsGLMultisampleSupported = FALSE;
@@ -746,18 +747,12 @@ BOOL InitGLMultisample(HINSTANCE hInstance, HWND hWnd, PIXELFORMATDESCRIPTOR pfd
     CheckGLError(__FILE__, __LINE__);
 #endif // defined(_DEBUG)
 
-    // See If The String Exists In WGL!
-    if (!IsGLExtensionSupported(L"WGL_ARB_multisample"))
-    {
-        bIsGLMultisampleSupported = FALSE;
-        return FALSE;
-    }
-
-#if defined(_DEBUG)
-    CheckGLError(__FILE__, __LINE__);
-#endif // defined(_DEBUG)
-    // Get Our Pixel Format
-    PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress(L"wglChoosePixelFormatARB");
+    // wglGetProcAddress / wglChoosePixelFormatARB require a current GL context
+    // to be available. The caller is responsible for creating a (dummy) context
+    // before calling this helper. WGL_ARB_pixel_format is queried via the
+    // WGL_EXT_extensions string, not the GL extensions string.
+    PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB =
+        (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
     if (!wglChoosePixelFormatARB)
     {
         bIsGLMultisampleSupported = FALSE;
@@ -838,7 +833,12 @@ void SetEnableMultisample()
 {
     if (TRUE == g_bSupportedMSAA)
     {
-        glEnable(GL_MULTISAMPLE_ARB);							// Enable Multisampling
+        glEnable(GL_MULTISAMPLE_ARB);
+        // MU is mostly alpha-tested sprites (character outlines, leaves, items).
+        // Plain MSAA doesn't smooth alpha-test edges — alpha-to-coverage uses the
+        // MSAA samples for partial coverage on cutout edges, which is what makes
+        // MSAA visibly do anything in a sprite-heavy game.
+        glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     }
 
 #if defined(_DEBUG)
@@ -850,15 +850,14 @@ void SetDisableMultisample()
 {
     if (TRUE == g_bSupportedMSAA)
     {
-        glDisable(GL_MULTISAMPLE_ARB);							// Enable Multisampling
+        glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        glDisable(GL_MULTISAMPLE_ARB);
     }
 
 #if defined(_DEBUG)
     CheckGLError(__FILE__, __LINE__);
 #endif // defined(_DEBUG)
 }
-
-#endif // LDS_ADD_MULTISAMPLEANTIALIASING
 
 ///////////////////////////////////////////////////////////////////////////////
 // render util

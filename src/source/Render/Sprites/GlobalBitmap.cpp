@@ -633,26 +633,32 @@ void CGlobalBitmap::GetEffectiveTextureFilter(GLuint idx, GLuint requested,
 {
     wantMipmaps = false;
 
+    // Default: keep the caller's requested filter unchanged. Webzen's stock
+    // pipeline uses GL_NEAREST on world textures to preserve the pixel-art look.
+    minFilter = requested;
+    magFilter = requested;
+
+    // Standard graphics-options convention:
+    //   * Anisotropy > Off  → promote to GL_LINEAR (bilinear) so aniso has
+    //                         something to enhance; live-applicable.
+    //   * Mipmap  = On      → use trilinear (GL_LINEAR_MIPMAP_LINEAR) for
+    //                         smooth distant tiles; requires upload-time
+    //                         mipmap chain (handled in OpenJpegTurbo/OpenTga).
+    //   * Both off          → keep GL_NEAREST (stock crisp look).
     if (!IsWorldTexture(idx))
-    {
-        // UI/font/cursor textures — keep caller's filter unchanged.
-        minFilter = requested;
-        magFilter = requested;
         return;
-    }
 
     const bool mipmapEnabled = GameConfig::GetInstance().GetMipmap();
+    const bool anisoEnabled  = GameConfig::GetInstance().GetAnisotropy() > 0;
 
     if (mipmapEnabled && IsMipmappableWorldTexture(idx))
     {
-        // Trilinear for safe-to-mipmap world textures (NPOT check is done at upload time).
-        minFilter  = GL_LINEAR_MIPMAP_LINEAR;
-        magFilter  = GL_LINEAR;
+        minFilter   = GL_LINEAR_MIPMAP_LINEAR;
+        magFilter   = GL_LINEAR;
         wantMipmaps = true;
     }
-    else
+    else if (anisoEnabled)
     {
-        // Bilinear for all other world textures.
         minFilter = GL_LINEAR;
         magFilter = GL_LINEAR;
     }
@@ -667,9 +673,10 @@ void CGlobalBitmap::ApplyTextureParameters(GLuint idx, GLuint uiFilter, GLuint u
     GetEffectiveTextureFilter(idx, uiFilter, minFilter, magFilter, wantMipmaps);
 
     // If the config requests trilinear but no mipmap pyramid was actually generated
-    // (e.g. NPOT-padded upload), fall back to bilinear so we don't get a black texture.
+    // (e.g. NPOT-padded upload), fall back to the caller's requested filter so we
+    // don't get a black texture and don't unintentionally promote to GL_LINEAR.
     if (wantMipmaps && !mipmapsReady)
-        minFilter = GL_LINEAR;
+        minFilter = uiFilter;
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(magFilter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(minFilter));
@@ -681,6 +688,37 @@ void CGlobalBitmap::ApplyTextureParameters(GLuint idx, GLuint uiFilter, GLuint u
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
 }
 
+void CGlobalBitmap::ReapplyTextureFilterAndAniso(GLuint idx, bool mipmapsReady)
+{
+    // Visual quality settings only affect world textures. Leave UI / font /
+    // cursor textures alone — they were loaded with their own filter (often
+    // GL_LINEAR) and overwriting them here would make the UI look pixelated.
+    if (!IsWorldTexture(idx))
+        return;
+
+    // Only touch MIN/MAG filter + anisotropy. Do NOT touch wrap mode — terrain
+    // tiles were loaded with GL_REPEAT and forcing CLAMP_TO_EDGE here causes
+    // edge-pixel bleed that looks like a heavy blur on the ground.
+    GLuint minFilter = GL_NEAREST;
+    GLuint magFilter = GL_NEAREST;
+    bool   wantMipmaps = false;
+    GetEffectiveTextureFilter(idx, GL_NEAREST, minFilter, magFilter, wantMipmaps);
+
+    if (wantMipmaps && !mipmapsReady)
+        minFilter = GL_NEAREST;
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(magFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(minFilter));
+
+    // Always write the aniso parameter so toggling Off actually drops it back
+    // to 1.0 (otherwise the previous value sticks on the texture).
+    if (SupportsAnisotropicFiltering() && IsWorldTexture(idx))
+    {
+        const float aniso = GetRequestedAnisotropy();
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+    }
+}
+
 void CGlobalBitmap::ReapplyAllTextureParameters()
 {
     for (auto& [index, pBitmap] : m_mapBitmap)
@@ -688,9 +726,9 @@ void CGlobalBitmap::ReapplyAllTextureParameters()
         if (pBitmap && pBitmap->TextureNumber != 0)
         {
             glBindTexture(GL_TEXTURE_2D, pBitmap->TextureNumber);
-            // Pass the bitmap's actual mipmap state so trilinear is only used
-            // on textures that truly have a complete mipmap pyramid.
-            ApplyTextureParameters(index, GL_NEAREST, GL_CLAMP_TO_EDGE, pBitmap->HasMipmaps);
+            // Reapply only filter + aniso so we don't clobber each texture's
+            // original wrap mode (REPEAT for terrain, CLAMP for UI sprites).
+            ReapplyTextureFilterAndAniso(index, pBitmap->HasMipmaps);
         }
     }
 }

@@ -4,7 +4,6 @@
 
 #include "UI/NewUI/NewUIManager.h"
 #include "UI/NewUI/Widgets/NewUIButton.h"
-#include "UI/NewUI/Widgets/NewUIComboBox.h"
 
 namespace SEASON3B
 {
@@ -60,8 +59,5 @@ namespace SEASON3B
         bool m_bVSync;
         int  m_iAnisotropyIdx; // 0=Off,1=2x,2=4x,3=8x,4=16x
         int  m_iMSAAIdx;       // 0=Off,1=2x,2=4x
-
-        CNewUIComboBox m_AnisotropyCombo;
-        CNewUIComboBox m_MSAACombo;
     };
 }

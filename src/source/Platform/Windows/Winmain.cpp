@@ -1272,9 +1272,63 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
         return FALSE;
     }
 
-    GLuint PixelFormat;
+    GLuint PixelFormat = 0;
 
-    if (!(PixelFormat = ChoosePixelFormat(g_hDC, &pfd)))
+    // --- MSAA probe ------------------------------------------------------
+    // SetPixelFormat can only be called once per window, so to use a
+    // multisample pixel format we have to spin up a throwaway window + GL
+    // context first (wglChoosePixelFormatARB needs wglGetProcAddress, which
+    // needs a current context). If it works, we use the chosen PF index on
+    // the real DC below. If it fails, we fall back to plain ChoosePixelFormat.
+    const int requestedMSAA = GameConfig::GetInstance().GetMSAA();
+    if (requestedMSAA > 0)
+    {
+        const wchar_t* dummyClassName = L"MuMSAA_Dummy";
+        WNDCLASS dummyWC = {};
+        dummyWC.lpfnWndProc   = DefWindowProc;
+        dummyWC.hInstance     = hInstance;
+        dummyWC.lpszClassName = dummyClassName;
+        RegisterClass(&dummyWC);
+
+        HWND dummyWnd = CreateWindowEx(0, dummyClassName, L"", WS_OVERLAPPEDWINDOW,
+            0, 0, 1, 1, nullptr, nullptr, hInstance, nullptr);
+        if (dummyWnd)
+        {
+            HDC dummyDC = GetDC(dummyWnd);
+            if (dummyDC)
+            {
+                int dummyPF = ChoosePixelFormat(dummyDC, &pfd);
+                if (dummyPF && SetPixelFormat(dummyDC, dummyPF, &pfd))
+                {
+                    HGLRC dummyRC = wglCreateContext(dummyDC);
+                    if (dummyRC && wglMakeCurrent(dummyDC, dummyRC))
+                    {
+                        int msPF = 0;
+                        if (InitGLMultisample(hInstance, g_hWnd, pfd, requestedMSAA, msPF))
+                        {
+                            PixelFormat        = msPF;
+                            g_bSupportedMSAA   = TRUE;
+                            g_ErrorReport.Write(L"> MSAA %dx pixel format acquired (PF=%d).\r\n",
+                                                requestedMSAA, msPF);
+                        }
+                        else
+                        {
+                            g_ErrorReport.Write(L"> MSAA %dx requested but not supported, falling back.\r\n",
+                                                requestedMSAA);
+                        }
+                        wglMakeCurrent(nullptr, nullptr);
+                    }
+                    if (dummyRC) wglDeleteContext(dummyRC);
+                }
+                ReleaseDC(dummyWnd, dummyDC);
+            }
+            DestroyWindow(dummyWnd);
+        }
+        UnregisterClass(dummyClassName, hInstance);
+    }
+    // --------------------------------------------------------------------
+
+    if (PixelFormat == 0 && !(PixelFormat = ChoosePixelFormat(g_hDC, &pfd)))
     {
         g_ErrorReport.Write(L"OpenGL Choose Pixel Format Error - ErrorCode : %d\r\n", GetLastError());
         KillGLWindow();
@@ -1305,6 +1359,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
         MessageBox(nullptr, I18N::Game::InstallTheLatestGraphicsCardDriver, L"OpenGL Make Current Error.", MB_OK | MB_ICONEXCLAMATION);
         return FALSE;
     }
+
+    if (g_bSupportedMSAA)
+        SetEnableMultisample();
 
     ShowWindow(g_hWnd, SW_SHOW);
     SetForegroundWindow(g_hWnd);

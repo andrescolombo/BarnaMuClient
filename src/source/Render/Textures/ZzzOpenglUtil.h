@@ -82,6 +82,14 @@ void EnableVSync();
 void DisableVSync();
 int GetFPSLimit();
 
+// MSAA (WGL_ARB_multisample). InitGLMultisample requires a current dummy GL
+// context (wglGetProcAddress needs one). On success, sets OutiPixelFormat to a
+// multisample-capable pixel format index for the given window's DC.
+extern BOOL g_bSupportedMSAA;
+BOOL InitGLMultisample(HINSTANCE hInstance, HWND hWnd, PIXELFORMATDESCRIPTOR pfd, int iRequestMSAAValue, int& OutiPixelFormat);
+void SetEnableMultisample();
+void SetDisableMultisample();
+
 void UpdateMousePositionn();
 inline void TEXCOORD(float* c, float u, float v)
 {

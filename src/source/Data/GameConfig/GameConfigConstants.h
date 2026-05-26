@@ -68,6 +68,7 @@ namespace CfgDefaults
 
     inline constexpr wchar_t CfgDefaultServerIP[] = L"127.127.127.127";
     inline constexpr int     CfgDefaultServerPort = 44406;
+    inline constexpr wchar_t CfgDefaultForgotPasswordURL[] = L"";
 
     // Graphics — Visual Quality defaults (conservative: match current baseline)
     inline constexpr int  CfgDefaultAnisotropy = 0;     // 0 = off (1.0f)

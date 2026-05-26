@@ -20,7 +20,9 @@ using namespace SEASON3B;
 namespace
 {
     constexpr int MAX_COMPARE_EQUIPPED_ITEMS = 2;
-    constexpr float EQUIP_STATUS_BACKGROUND_ALPHA = 0.12f;
+    // Kept high enough to survive GL_SAMPLE_ALPHA_TO_COVERAGE (MSAA path)
+    // dithering low-alpha pixels into invisibility.
+    constexpr float EQUIP_STATUS_BACKGROUND_ALPHA = 0.45f;
 
     enum class EquipStatus { None, ClassMismatch, StatInsufficient, CanEquip };
 

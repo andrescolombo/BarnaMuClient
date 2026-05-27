@@ -82,6 +82,7 @@
 #include "UI/NewUI/Inventory/NewUIUnitedMarketPlaceWindow.h"
 
 #include "UI/NewUI/Inventory/NewUILuckyItemWnd.h"
+#include "UI/NewUI/HUD/HelperSessionStatusPanel.h"
 #include "UI/NewUI/NewUIMuHelper.h"
 
 namespace SEASON3B
@@ -221,6 +222,7 @@ namespace SEASON3B
         CNewUIMuHelper* m_pNewUIMuHelper;
         CNewUIMuHelperExt* m_pNewUIMuHelperExt;
         CNewUIMuHelperSkillList* m_pNewUIMuHelperSkillList;
+        UI::Helper::SessionStatus::Panel* m_pHelperSessionStatusPanel;
     public:
         CNewUIChatInputBox* GetUI_NewChatInputBox() const;
         CNewUIChatLogWindow* GetUI_NewChatLogWindow() const;

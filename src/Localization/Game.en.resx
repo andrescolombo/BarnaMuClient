@@ -12920,4 +12920,76 @@
   <data name="RequestModeParty" xml:space="preserve">
     <value>Party</value>
   </data>
+  <data name="HelperSessionStatusTitle" xml:space="preserve">
+    <value>Mu Helper Session</value>
+  </data>
+  <data name="HelperSessionStatusSessionTime" xml:space="preserve">
+    <value>Session Time</value>
+  </data>
+  <data name="HelperSessionStatusCurrentSpot" xml:space="preserve">
+    <value>Current Spot</value>
+  </data>
+  <data name="HelperSessionStatusTotalDamage" xml:space="preserve">
+    <value>Total Damage</value>
+  </data>
+  <data name="HelperSessionStatusAverageDps" xml:space="preserve">
+    <value>Average DPS</value>
+  </data>
+  <data name="HelperSessionStatusKills" xml:space="preserve">
+    <value>Kills</value>
+  </data>
+  <data name="HelperSessionStatusAverageKillTime" xml:space="preserve">
+    <value>Average kill time</value>
+  </data>
+  <data name="HelperSessionStatusExpGained" xml:space="preserve">
+    <value>EXP gained</value>
+  </data>
+  <data name="HelperSessionStatusExpPerHour" xml:space="preserve">
+    <value>EXP / hour</value>
+  </data>
+  <data name="HelperSessionStatusZenPicked" xml:space="preserve">
+    <value>Zen picked</value>
+  </data>
+  <data name="HelperSessionStatusZenPerHour" xml:space="preserve">
+    <value>Zen / hour</value>
+  </data>
+  <data name="HelperSessionStatusJewelsPicked" xml:space="preserve">
+    <value>Jewels picked</value>
+  </data>
+  <data name="HelperSessionStatusHpPotionsUsed" xml:space="preserve">
+    <value>HP potions used</value>
+  </data>
+  <data name="HelperSessionStatusMpPotionsUsed" xml:space="preserve">
+    <value>MP potions used</value>
+  </data>
+  <data name="HelperSessionStatusIdleTime" xml:space="preserve">
+    <value>Idle time</value>
+  </data>
+  <data name="HelperSessionStatusStuckTime" xml:space="preserve">
+    <value>Stuck time</value>
+  </data>
+  <data name="HelperSessionStatusLastDeathReason" xml:space="preserve">
+    <value>Last death reason</value>
+  </data>
+  <data name="HelperSessionStatusNotAvailable" xml:space="preserve">
+    <value>N/A</value>
+  </data>
+  <data name="HelperSessionStatusUnknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="HelperSessionStatusNone" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="HelperSessionStatusDisconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="HelperSessionStatusKilledByMonster" xml:space="preserve">
+    <value>Killed by monster</value>
+  </data>
+  <data name="HelperSessionStatusKilledByPK" xml:space="preserve">
+    <value>Killed by PK</value>
+  </data>
+  <data name="HelperSessionStatusPieces" xml:space="preserve">
+    <value>pieces</value>
+  </data>
 </root>

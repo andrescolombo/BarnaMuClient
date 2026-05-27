@@ -12,6 +12,8 @@ namespace
 {
     constexpr int kLayoutBaseX = 640;
     constexpr int kLayoutPanelWidth = 190;
+    constexpr int kHelperSessionStatusX = 125;
+    constexpr int kHelperSessionStatusY = 52;
 
     constexpr int PanelColumnX(int columns)
     {
@@ -118,6 +120,7 @@ CNewUISystem::CNewUISystem()
     m_pNewGensRanking = nullptr;
 #endif //PBG_ADD_GENSRANKING
     m_pNewUnitedMarketPlaceWindow = nullptr;
+    m_pHelperSessionStatusPanel = nullptr;
 }
 
 CNewUISystem::~CNewUISystem()
@@ -532,6 +535,10 @@ bool CNewUISystem::LoadMainSceneInterface()
     if (m_pNewUIMuHelperSkillList->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
         return false;
 
+    m_pHelperSessionStatusPanel = new UI::Helper::SessionStatus::Panel;
+    if (m_pHelperSessionStatusPanel->Create(m_pNewUIMng, kHelperSessionStatusX, kHelperSessionStatusY) == false)
+        return false;
+
     return true;
 }
 
@@ -616,6 +623,7 @@ void CNewUISystem::UnloadMainSceneInterface()
 #endif //PBG_MOD_STAMINA_UI
     SAFE_DELETE(m_pNewGensRanking);
     SAFE_DELETE(m_pNewUnitedMarketPlaceWindow);
+    SAFE_DELETE(m_pHelperSessionStatusPanel);
 #ifdef LEM_FIX_LUCKYITEM_UICLASS_SAFEDELETE
     SAFE_DELETE(m_pNewUILuckyItemWnd);
 #endif // LEM_FIX_LUCKYITEM_UICLASS_SAFEDELETE
@@ -1931,6 +1939,7 @@ bool CNewUISystem::IsImpossibleHideInterface(DWORD dwKey)
         || dwKey == INTERFACE_DUEL_WINDOW
         || dwKey == INTERFACE_CRYWOLF
         || dwKey == INTERFACE_HERO_POSITION_INFO
+        || dwKey == INTERFACE_HELPER_SESSION_STATUS
         || dwKey == INTERFACE_NAME_WINDOW
         || dwKey == INTERFACE_SIEGEWARFARE
         || dwKey == INTERFACE_ITEM_TOOLTIP

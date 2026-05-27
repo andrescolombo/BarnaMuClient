@@ -35,6 +35,7 @@ FrameTimingState g_frameTiming;
 #include "Network/Reconnect/ReconnectManager.h"
 #include "UI/NewUI/Dialogs/ReconnectDialog.h"
 #include "GameLogic/Events/w_CursedTemple.h"
+#include "GameLogic/Helper/SessionStats.h"
 #include "Network/Server/ServerListManager.h"
 #include "UI/NewUI/NewUISystem.h"
 #include "Engine/Object/ZzzInterface.h"
@@ -627,6 +628,7 @@ static void CheckServerConnection()
         g_ErrorReport.Write(L"> Connection lost in game - starting auto-reconnect. ");
         g_ErrorReport.WriteCurrentTime();
         g_ConsoleDebug->Write(MCD_NORMAL, L"Connection lost in game - starting auto-reconnect");
+        GameLogic::Helper::SessionStats::RecordDisconnected();
         // Grab the clean game frame now (front buffer, dialog not yet drawn) so
         // the brief re-login phase shows it frozen instead of a black screen.
         UI::Reconnect::CaptureBackground();
@@ -641,6 +643,7 @@ static void CheckServerConnection()
         g_ErrorReport.Write(L"> Connection closed. ");
         g_ErrorReport.WriteCurrentTime();
         g_ConsoleDebug->Write(MCD_NORMAL, L"Connection closed");
+        GameLogic::Helper::SessionStats::RecordDisconnected();
         CUIMng::Instance().PopUpMsgWin(MESSAGE_SERVER_LOST);
     }
 }

@@ -74,6 +74,7 @@ namespace MUHelper
 		bool IsSelfPositionSkill(ActionSkillType iSkill);
 		bool IsMonsterOnTile(int iTileX, int iTileY);
 		int GetBasicAttackIntervalMs() const;
+		bool HasAnyTarget() const;
 
 	private:
 		ConfigData m_config;

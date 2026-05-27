@@ -43,6 +43,7 @@
 #include "GameLogic/Skills/SkillManager.h"
 #include "World/MapInfra/w_MapHeaders.h"
 #include "GameLogic/Combat/DuelMgr.h"
+#include "GameLogic/Helper/SessionStats.h"
 #include "GameLogic/Items/ChangeRingManager.h"
 #include "UI/NewUI/HUD/NewUIGensRanking.h"
 #include "GameLogic/Social/MonkSystem.h"
@@ -7301,11 +7302,23 @@ bool CheckMana(CHARACTER* c, int Skill)
         if (Index != -1)
         {
             SendRequestUse(Index, 0);
+            if (MUHelper::g_MuHelper.IsActive())
+            {
+                GameLogic::Helper::SessionStats::RecordPotionUsed(GameLogic::Helper::SessionStats::PotionKind::MP);
+            }
+        }
+        else if (MUHelper::g_MuHelper.IsActive())
+        {
+            GameLogic::Helper::SessionStats::RecordWarning(GameLogic::Helper::SessionStats::Warning::NoMana);
         }
         return false;
     }
     if (iSkillMana > CharacterAttribute->SkillMana)
     {
+        if (MUHelper::g_MuHelper.IsActive())
+        {
+            GameLogic::Helper::SessionStats::RecordWarning(GameLogic::Helper::SessionStats::Warning::NoMana);
+        }
         return false;
     }
     return true;

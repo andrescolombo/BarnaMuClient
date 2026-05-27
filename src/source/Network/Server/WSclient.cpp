@@ -36,6 +36,7 @@
 #include "UI/Legacy/UIMapName.h" // rozy
 #include "UI/Legacy/UIMng.h"
 #include "GameLogic/Events/Cinematic/CDirection.h"
+#include "GameLogic/Helper/SessionStats.h"
 #include "Character/CSParts.h"
 #include "Engine/Physics/PhysicsManager.h"
 #include "GameLogic/Events/Event.h"
@@ -3188,6 +3189,79 @@ void ReceiveDeleteCharacterViewport(const BYTE* ReceiveBuffer)
 }
 int AttackPlayer = 0;
 
+static bool IsHelperSessionDamageTarget(CHARACTER* target, int key, int damage)
+{
+    if (target == nullptr || damage <= 0)
+    {
+        return false;
+    }
+    if (key == HeroKey || AttackPlayer != HeroIndex)
+    {
+        return false;
+    }
+
+    return IsMonster(target);
+}
+
+static void RecordHelperSessionDamage(CHARACTER* target, int key, int damage, int damageType, bool doubleDamage, bool comboDamage)
+{
+    if (!IsHelperSessionDamageTarget(target, key, damage))
+    {
+        return;
+    }
+
+    const auto kind = GameLogic::Helper::SessionStats::ClassifyCombatDamage(damageType, doubleDamage, comboDamage);
+    GameLogic::Helper::SessionStats::RecordDamage(damage, kind);
+}
+
+static GameLogic::Helper::SessionStats::DeathReason GetHeroDeathReason(LPPHEADER_DEFAULT_DIE data)
+{
+    if (data == nullptr)
+    {
+        return GameLogic::Helper::SessionStats::DeathReason::Unknown;
+    }
+
+    const int attackerKey = (static_cast<int>(data->TKeyH) << 8) + data->TKeyL;
+    const int attackerIndex = FindCharacterIndex(attackerKey);
+    if (attackerIndex == MAX_CHARACTERS_CLIENT)
+    {
+        return GameLogic::Helper::SessionStats::DeathReason::Unknown;
+    }
+
+    CHARACTER* attacker = &CharactersClient[attackerIndex];
+    if (attacker == Hero || !attacker->Object.Live)
+    {
+        return GameLogic::Helper::SessionStats::DeathReason::Unknown;
+    }
+
+    if (IsMonster(attacker))
+    {
+        return GameLogic::Helper::SessionStats::DeathReason::KilledByMonster;
+    }
+
+    if (attacker->Object.Type == MODEL_PLAYER)
+    {
+        return GameLogic::Helper::SessionStats::DeathReason::KilledByPK;
+    }
+
+    return GameLogic::Helper::SessionStats::DeathReason::Unknown;
+}
+
+static bool IsTrackableJewelPickup(ITEM* pickedItem)
+{
+    if (pickedItem == nullptr)
+    {
+        return false;
+    }
+
+    const int type = pickedItem->Type;
+    return IsJewelItem(pickedItem)
+        || type == ITEM_JEWEL_OF_HARMONY
+        || type == ITEM_GEMSTONE
+        || type == INDEX_COMPILED_CELE
+        || type == INDEX_COMPILED_SOUL;
+}
+
 void ReceiveDamage(const BYTE* ReceiveBuffer)
 {
     auto Data = (LPPRECEIVE_DAMAGE)ReceiveBuffer;
@@ -3537,6 +3611,8 @@ void ReceiveAttackDamageExtended(const BYTE* ReceiveBuffer)
     {
         c->ShieldStatus = static_cast<float>(Data->HealthStatus) / 250.f;
     }
+
+    RecordHelperSessionDamage(c, Key, Damage, DamageType, bDoubleEnable, bComboEnable);
 
     if (gMapManager.InChaosCastle())
     {
@@ -5698,6 +5774,10 @@ BOOL ReceiveDieExp(const BYTE* ReceiveBuffer, BOOL bEncrypted)
     }
     c->Dead = 1;
     c->Movement = false;
+    if (IsMonster(c))
+    {
+        GameLogic::Helper::SessionStats::RecordKill(Exp);
+    }
 
     if (gCharacterManager.IsMasterExperienceActive(CharacterAttribute->Class, CharacterAttribute->Level) == true)
     {
@@ -5781,6 +5861,10 @@ BOOL ReceiveDieExpLarge(const BYTE* ReceiveBuffer, BOOL bEncrypted)
 
     killedObject->Dead = 1;
     killedObject->Movement = false;
+    if (Hero->Key == killerId && IsMonster(killedObject))
+    {
+        GameLogic::Helper::SessionStats::RecordKill(addedExperience);
+    }
 
     switch(experienceType)
     {
@@ -5961,6 +6045,7 @@ void ReceiveDie(const BYTE* ReceiveBuffer, int Size)
 
     if (c == Hero)
     {
+        GameLogic::Helper::SessionStats::RecordDeath(GetHeroDeathReason(Data));
         MUHelper::g_MuHelper.TriggerStop();
     }
 
@@ -6102,6 +6187,7 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
 
             if (getGold > 0)
             {
+                GameLogic::Helper::SessionStats::RecordZenPicked(getGold);
                 mu_swprintf(szMessage, L"%d %ls %ls", getGold, I18N::Game::Zen, I18N::Game::Obtained);
                 g_pSystemLogBox->AddText(szMessage, SEASON3B::TYPE_SYSTEM_MESSAGE);
             }
@@ -6160,6 +6246,10 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
             wchar_t szMessage[128];
             mu_swprintf(szMessage, L"%ls %ls", szItem, I18N::Game::Obtained);
             g_pSystemLogBox->AddText(szMessage, SEASON3B::TYPE_SYSTEM_MESSAGE);
+            if (IsTrackableJewelPickup(pickedItem))
+            {
+                GameLogic::Helper::SessionStats::RecordJewelPicked();
+            }
 
             int Type = pickedItem->Type;
             if (Type == ITEM_JEWEL_OF_BLESS || Type == ITEM_JEWEL_OF_SOUL || Type == ITEM_JEWEL_OF_LIFE || Type == ITEM_JEWEL_OF_CHAOS || Type == ITEM_JEWEL_OF_CREATION

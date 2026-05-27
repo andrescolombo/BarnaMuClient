@@ -11,6 +11,7 @@
 #include "UI/NewUI/NewUISystem.h"
 #include "Core/Utilities/Log/muConsoleDebug.h"
 #include "Character/CharacterManager.h"
+#include "GameLogic/Helper/SessionStats.h"
 #include "GameLogic/Skills/SkillManager.h"
 #include "GameLogic/Social/PartyManager.h"
 #include "World/MapInfra/MapManager.h"
@@ -124,12 +125,15 @@ namespace MUHelper
         m_iLoopCounter = 0;
 
         m_bActive = true;
+        GameLogic::Helper::SessionStats::Start();
+        g_pNewUISystem->Show(SEASON3B::INTERFACE_HELPER_SESSION_STATUS);
         g_ConsoleDebug->Write(MCD_NORMAL, L"[MU Helper] Started");
     }
 
     void CMuHelper::Stop()
     {
         m_bActive = false;
+        GameLogic::Helper::SessionStats::Stop();
         g_ConsoleDebug->Write(MCD_NORMAL, L"[MU Helper] Stopped");
     }
 
@@ -146,6 +150,12 @@ namespace MUHelper
             TriggerStop();
             return;
         }
+
+        GameLogic::Helper::SessionStats::Tick(
+            MUHELPER_TIMER_INTERVAL_MS,
+            Hero->PositionX,
+            Hero->PositionY,
+            HasAnyTarget());
 
         Work();
 
@@ -309,6 +319,11 @@ namespace MUHelper
         int ms = 1000 - (as * 2);
         if (ms < 100) ms = 100;
         return ms;
+    }
+
+    bool CMuHelper::HasAnyTarget() const
+    {
+        return m_iCurrentTarget != -1 || !m_setTargets.empty();
     }
 
     int CMuHelper::GetNearestTarget()
@@ -966,6 +981,10 @@ namespace MUHelper
         {
             DeleteTarget(iTarget);
         }
+        if (iSkillResult == 1)
+        {
+            GameLogic::Helper::SessionStats::RecordActivity();
+        }
 
         return (int)(iSkillResult == 1);
     }
@@ -1039,6 +1058,7 @@ namespace MUHelper
             Hero->Path.Lock.unlock();
 
             SendMove(Hero, &Hero->Object);
+            GameLogic::Helper::SessionStats::RecordMovementAttempt(Hero->PositionX, Hero->PositionY);
             return 0;
         }
 
@@ -1056,6 +1076,7 @@ namespace MUHelper
         ActionTarget = iCharIndex;
         Attacking = 1;
         Action(Hero, &Hero->Object, true);
+        GameLogic::Helper::SessionStats::RecordActivity();
         m_dwLastBasicHitTick = nowTick;
         return 1;
     }
@@ -1088,6 +1109,7 @@ namespace MUHelper
             if (PathFinding2((Hero->PositionX), (Hero->PositionY), TargetX, TargetY, &Hero->Path))
             {
                 SendMove(Hero, &Hero->Object);
+                GameLogic::Helper::SessionStats::RecordMovementAttempt(Hero->PositionX, Hero->PositionY);
             }
             return 0;
         }

@@ -3195,12 +3195,16 @@ static bool IsHelperSessionDamageTarget(CHARACTER* target, int key, int damage)
     {
         return false;
     }
-    if (key == HeroKey || AttackPlayer != HeroIndex)
+    if (key == HeroKey)
+    {
+        return false;
+    }
+    if (!IsMonster(target))
     {
         return false;
     }
 
-    return IsMonster(target);
+    return GameLogic::Helper::SessionStats::IsRecentHeroTarget(key);
 }
 
 static void RecordHelperSessionDamage(CHARACTER* target, int key, int damage, int damageType, bool doubleDamage, bool comboDamage)

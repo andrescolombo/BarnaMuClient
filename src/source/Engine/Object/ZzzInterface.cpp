@@ -2297,6 +2297,10 @@ void SendRequestMagic(int Type, int Key)
     {
         g_dwLatestMagicTick = GetTickCount();
         SocketClient->ToGameServer()->SendTargetedSkill(Type, Key);
+        if (Key != HeroKey)
+        {
+            GameLogic::Helper::SessionStats::RegisterHeroTarget(Key);
+        }
         g_ConsoleDebug->Write(MCD_SEND, L"0x19 [SendRequestMagic(%d %d)]", Type, Key);
     }
 }
@@ -2321,6 +2325,32 @@ void SendRequestMagicContinue(int Type, int x, int y, int Angle, BYTE Dest, BYTE
     ReportAreaSkillTargetState(Type, g_MovementSkill.m_iTarget, TKey);
 
     SocketClient->ToGameServer()->SendAreaSkill(Type, x, y, Angle, TKey, MakeSkillSerialNumber(pSkillSerial));
+
+    if (TKey != 0 && TKey != HeroKey)
+    {
+        GameLogic::Helper::SessionStats::RegisterHeroTarget(TKey);
+    }
+
+    const float radius = gSkillManager.GetSkillDistance(Type, Hero);
+    if (radius > 0.f)
+    {
+        const int radiusInt = static_cast<int>(radius);
+        const int radiusSqr = radiusInt * radiusInt;
+        for (int i = 0; i < MAX_CHARACTERS_CLIENT; i++)
+        {
+            CHARACTER* p = &CharactersClient[i];
+            if (!p->Object.Live || p->Dead > 0 || !IsMonster(p))
+            {
+                continue;
+            }
+            const int dx = p->PositionX - x;
+            const int dy = p->PositionY - y;
+            if (dx * dx + dy * dy <= radiusSqr)
+            {
+                GameLogic::Helper::SessionStats::RegisterHeroTarget(p->Key);
+            }
+        }
+    }
 
     g_ConsoleDebug->Write(MCD_SEND, L"0x1E [SendRequestMagicContinue]");
 }
@@ -3635,6 +3665,7 @@ void Action(CHARACTER* c, OBJECT* o, bool Now)
         int Dir = ((BYTE)((Hero->Object.Angle[2] + 22.5f) / 360.f * 8.f + 1.f) % 8);
         c->Skill = 0;
         SocketClient->ToGameServer()->SendHitRequest(CharactersClient[ActionTarget].Key, AT_ATTACK1, Dir);
+        GameLogic::Helper::SessionStats::RegisterHeroTarget(CharactersClient[ActionTarget].Key);
     }
     break;
     case MOVEMENT_SKILL:

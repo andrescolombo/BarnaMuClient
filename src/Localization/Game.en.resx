@@ -12984,10 +12984,10 @@
     <value>Disconnected</value>
   </data>
   <data name="HelperSessionStatusKilledByMonster" xml:space="preserve">
-    <value>Killed by monster</value>
+    <value>Monster</value>
   </data>
   <data name="HelperSessionStatusKilledByPK" xml:space="preserve">
-    <value>Killed by PK</value>
+    <value>Player</value>
   </data>
   <data name="HelperSessionStatusPieces" xml:space="preserve">
     <value>pieces</value>

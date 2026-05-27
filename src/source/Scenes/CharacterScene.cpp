@@ -21,6 +21,8 @@
 #include "Network/Server/WSclient.h"
 #include "Network/Server/CSMapServer.h"
 #include "Core/Utilities/Log/muConsoleDebug.h"
+#include "GameLogic/Helper/SessionStats.h"
+#include "MUHelper/MuHelper.h"
 #include "UI/NewUI/NewUISystem.h"
 #include "Audio/DSPlaySound.h"
 #include "Platform/Windows/Winmain.h"
@@ -83,6 +85,10 @@ void StartGame()
 void CreateCharacterScene()
 {
     g_pNewUIMng->ResetActiveUIObj();
+
+    MUHelper::g_MuHelper.Stop();
+    GameLogic::Helper::SessionStats::Reset();
+    g_pNewUISystem->Hide(SEASON3B::INTERFACE_HELPER_SESSION_STATUS);
 
     EnableMainRender = true;
     MouseOnWindow = false;

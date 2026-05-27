@@ -18,10 +18,18 @@ namespace GameLogic::Helper::SessionStats
         constexpr int DAMAGE_TYPE_EXCELLENT = 2;
         constexpr int DAMAGE_TYPE_CRITICAL = 3;
 
+        struct RecentTarget
+        {
+            int key = 0;
+            DWORD expireTick = 0;
+        };
+
         struct State
         {
             bool hasSession = false;
             bool isActive = false;
+            RecentTarget recentTargets[RECENT_TARGET_CAPACITY] = {};
+            unsigned int recentTargetWriteIndex = 0;
             unsigned int activeMilliseconds = 0;
             unsigned long long totalDamage = 0;
             unsigned long long normalDamage = 0;
@@ -420,6 +428,47 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.lastDeathReason = reason;
+    }
+
+    void RegisterHeroTarget(int monsterKey)
+    {
+        if (monsterKey == 0)
+        {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(g_StateLock);
+        const DWORD expireTick = GetTickCount() + RECENT_TARGET_TTL_MS;
+        for (auto& target : g_State.recentTargets)
+        {
+            if (target.key == monsterKey)
+            {
+                target.expireTick = expireTick;
+                return;
+            }
+        }
+
+        g_State.recentTargets[g_State.recentTargetWriteIndex] = { monsterKey, expireTick };
+        g_State.recentTargetWriteIndex = (g_State.recentTargetWriteIndex + 1) % RECENT_TARGET_CAPACITY;
+    }
+
+    bool IsRecentHeroTarget(int monsterKey)
+    {
+        if (monsterKey == 0)
+        {
+            return false;
+        }
+
+        std::lock_guard<std::mutex> lock(g_StateLock);
+        const DWORD now = GetTickCount();
+        for (const auto& target : g_State.recentTargets)
+        {
+            if (target.key == monsterKey && target.expireTick > now)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     void RecordDisconnected()

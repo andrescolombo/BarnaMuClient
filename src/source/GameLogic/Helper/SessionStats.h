@@ -6,6 +6,8 @@ namespace GameLogic::Helper::SessionStats
     inline constexpr int IDLE_THRESHOLD_MS = 5000;
     inline constexpr int STUCK_THRESHOLD_MS = 3000;
     inline constexpr int NO_TARGET_THRESHOLD_MS = 2000;
+    inline constexpr int RECENT_TARGET_TTL_MS = 8000;
+    inline constexpr int RECENT_TARGET_CAPACITY = 64;
 
     enum class DamageKind
     {
@@ -92,5 +94,7 @@ namespace GameLogic::Helper::SessionStats
     void RecordWarning(Warning warning);
     void RecordDeath(DeathReason reason);
     void RecordDisconnected();
+    void RegisterHeroTarget(int monsterKey);
+    bool IsRecentHeroTarget(int monsterKey);
     void GetSnapshot(Snapshot& snapshot);
 }

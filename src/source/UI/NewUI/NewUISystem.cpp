@@ -12,8 +12,9 @@ namespace
 {
     constexpr int kLayoutBaseX = 640;
     constexpr int kLayoutPanelWidth = 190;
-    constexpr int kHelperSessionStatusX = 125;
-    constexpr int kHelperSessionStatusY = 52;
+    constexpr int kHelperSessionStatusMargin = 8;
+    constexpr int kHelperSessionStatusX = REFERENCE_WIDTH - UI::Helper::SessionStatus::Panel::kWindowWidth - kHelperSessionStatusMargin;
+    constexpr int kHelperSessionStatusY = REFERENCE_HEIGHT - UI::Helper::SessionStatus::Panel::kWindowHeight - kHelperSessionStatusMargin;
 
     constexpr int PanelColumnX(int columns)
     {

@@ -9,6 +9,9 @@ namespace UI::Helper::SessionStatus
     class Panel : public SEASON3B::CNewUIObj
     {
     public:
+        static constexpr int kWindowWidth = 140;
+        static constexpr int kWindowHeight = 203;
+
         Panel();
         ~Panel() override;
 

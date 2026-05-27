@@ -15,17 +15,15 @@ namespace UI::Helper::SessionStatus
 {
     namespace
     {
-        constexpr int WINDOW_WIDTH = 390;
-        constexpr int WINDOW_HEIGHT = 120;
+        constexpr int WINDOW_WIDTH = Panel::kWindowWidth;
+        constexpr int WINDOW_HEIGHT = Panel::kWindowHeight;
         constexpr int HEADER_HEIGHT = 18;
         constexpr int ROW_START_Y = 23;
         constexpr int ROW_HEIGHT = 11;
-        constexpr int ROW_COUNT = 8;
         constexpr int WINDOW_PADDING_X = 8;
-        constexpr int COLUMN_GAP = 8;
-        constexpr int COLUMN_WIDTH = (WINDOW_WIDTH - WINDOW_PADDING_X * 2 - COLUMN_GAP) / 2;
-        constexpr int LABEL_WIDTH = 92;
-        constexpr int VALUE_OFFSET_X = 96;
+        constexpr int CONTENT_WIDTH = WINDOW_WIDTH - WINDOW_PADDING_X * 2;
+        constexpr int LABEL_WIDTH = 75;
+        constexpr int VALUE_OFFSET_X = LABEL_WIDTH + 4;
         constexpr int CLOSE_SIZE = 12;
         constexpr int CLOSE_OFFSET_X = WINDOW_WIDTH - CLOSE_SIZE - 4;
         constexpr int CLOSE_OFFSET_Y = 3;
@@ -344,11 +342,10 @@ namespace UI::Helper::SessionStatus
     void Panel::RenderRows() const
     {
         g_pRenderText->SetFont(g_hFont);
-        for (int row = 0; row < ROW_COUNT; row++)
+        for (int row = 0; row < METRIC_COUNT; row++)
         {
             const int y = m_Pos.y + ROW_START_Y + row * ROW_HEIGHT;
-            RenderMetric(row * 2, m_Pos.x + WINDOW_PADDING_X, y, COLUMN_WIDTH);
-            RenderMetric(row * 2 + 1, m_Pos.x + WINDOW_PADDING_X + COLUMN_WIDTH + COLUMN_GAP, y, COLUMN_WIDTH);
+            RenderMetric(row, m_Pos.x + WINDOW_PADDING_X, y, CONTENT_WIDTH);
         }
     }
 

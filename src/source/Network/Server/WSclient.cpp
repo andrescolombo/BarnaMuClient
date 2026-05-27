@@ -5778,9 +5778,9 @@ BOOL ReceiveDieExp(const BYTE* ReceiveBuffer, BOOL bEncrypted)
     }
     c->Dead = 1;
     c->Movement = false;
-    if (IsMonster(c))
+    if (IsMonster(c) && Exp > 0)
     {
-        GameLogic::Helper::SessionStats::RecordKill(Exp);
+        GameLogic::Helper::SessionStats::RecordKill();
     }
 
     if (gCharacterManager.IsMasterExperienceActive(CharacterAttribute->Class, CharacterAttribute->Level) == true)
@@ -5867,7 +5867,7 @@ BOOL ReceiveDieExpLarge(const BYTE* ReceiveBuffer, BOOL bEncrypted)
     killedObject->Movement = false;
     if (Hero->Key == killerId && IsMonster(killedObject))
     {
-        GameLogic::Helper::SessionStats::RecordKill(addedExperience);
+        GameLogic::Helper::SessionStats::RecordKill();
     }
 
     switch(experienceType)

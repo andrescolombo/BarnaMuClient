@@ -86,7 +86,9 @@ namespace GameLogic::Helper::SessionStats
     void RecordActivity();
     void RecordDamage(int damage, DamageKind kind);
     DamageKind ClassifyCombatDamage(int damageType, bool doubleDamage, bool comboDamage);
-    void RecordKill(unsigned long long experience);
+    void RecordKill();
+    void RecordExperience(unsigned long long experience);
+    void SampleExperience(long long currentBaseExperience, long long currentMasterExperience);
     void RecordZenPicked(int amount);
     void RecordJewelPicked();
     void RecordPotionUsed(PotionKind kind);

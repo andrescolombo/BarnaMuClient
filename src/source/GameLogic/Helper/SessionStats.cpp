@@ -60,6 +60,8 @@ namespace GameLogic::Helper::SessionStats
             bool movementAttemptThisTick = false;
             Warning lastWarning = Warning::None;
             DeathReason lastDeathReason = DeathReason::None;
+            long long lastBaseExperienceSample = -1;
+            long long lastMasterExperienceSample = -1;
         };
 
         State g_State;
@@ -332,7 +334,7 @@ namespace GameLogic::Helper::SessionStats
         return DamageKind::Normal;
     }
 
-    void RecordKill(unsigned long long experience)
+    void RecordKill()
     {
         std::lock_guard<std::mutex> lock(g_StateLock);
         if (!g_State.isActive)
@@ -341,8 +343,47 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.kills++;
+        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
+    }
+
+    void RecordExperience(unsigned long long experience)
+    {
+        if (experience == 0)
+        {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(g_StateLock);
+        if (!g_State.isActive)
+        {
+            return;
+        }
+
         g_State.experienceGained += experience;
         g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
+    }
+
+    void SampleExperience(long long currentBaseExperience, long long currentMasterExperience)
+    {
+        std::lock_guard<std::mutex> lock(g_StateLock);
+        if (!g_State.isActive)
+        {
+            return;
+        }
+
+        const long long lastBase = g_State.lastBaseExperienceSample;
+        const long long lastMaster = g_State.lastMasterExperienceSample;
+        g_State.lastBaseExperienceSample = currentBaseExperience;
+        g_State.lastMasterExperienceSample = currentMasterExperience;
+
+        if (lastBase >= 0 && currentBaseExperience > lastBase)
+        {
+            g_State.experienceGained += static_cast<unsigned long long>(currentBaseExperience - lastBase);
+        }
+        if (lastMaster >= 0 && currentMasterExperience > lastMaster)
+        {
+            g_State.experienceGained += static_cast<unsigned long long>(currentMasterExperience - lastMaster);
+        }
     }
 
     void RecordZenPicked(int amount)

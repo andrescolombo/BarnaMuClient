@@ -157,6 +157,10 @@ namespace MUHelper
             Hero->PositionY,
             HasAnyTarget());
 
+        GameLogic::Helper::SessionStats::SampleExperience(
+            static_cast<long long>(CharacterAttribute->Experience),
+            Master_Level_Data.lMasterLevel_Experince);
+
         Work();
 
         if (m_iLoopCounter++ == 4)

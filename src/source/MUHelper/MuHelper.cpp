@@ -1374,6 +1374,17 @@ namespace MUHelper
         _itemsLock.unlock();
     }
 
+    // Own-drop tracking: if the player just threw something away, the bot
+    // should leave it on the floor. Drop sites call NoteOwnDrop(tx, ty) right
+    // before SendDropItemRequest. When the server echoes the drop back via
+    // ReceiveCreateItemViewportExtended / ReceiveCreateMoney, AddItem matches
+    // the incoming floor item against the recorded tiles (within
+    // OWN_DROP_TILE_TOLERANCE to absorb server-side placement shifts and within
+    // OWN_DROP_TTL_MS to bound staleness) and parks the id in
+    // m_setOwnDropItems instead of m_setItems -- the bot never sees it.
+    // Important: we deliberately do NOT route through m_setSkippedItems,
+    // because DeleteTarget clears that set on every mob death and would
+    // un-skip our drop within seconds of any kill.
     void CMuHelper::NoteOwnDrop(int tx, int ty)
     {
         const DWORD nowTick = GetTickCount();

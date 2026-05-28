@@ -1412,6 +1412,13 @@ int CNewUIMyInventory::FindEmptySlotIncludingExtensions(ITEM* pItem) const
     return FindEmptySlotIncludingExtensions(pItemAttr->Width, pItemAttr->Height);
 }
 
+bool CNewUIMyInventory::CanFitItem(const ITEM* pItem) const
+{
+    if (pItem == nullptr || m_pNewInventoryCtrl == nullptr) return false;
+    const ITEM_ATTRIBUTE* pAttr = &ItemAttribute[pItem->Type];
+    return m_pNewInventoryCtrl->CanFit(pAttr->Width, pAttr->Height);
+}
+
 void CNewUIMyInventory::UI2DEffectCallback(LPVOID pClass, DWORD dwParamA, DWORD dwParamB)
 {
     if (pClass)

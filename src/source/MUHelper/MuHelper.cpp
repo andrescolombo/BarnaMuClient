@@ -1321,6 +1321,14 @@ namespace MUHelper
         ITEM_t* pDrop = &Items[iItemId];
         ITEM* pItem = &pDrop->Item;
 
+        if (!MatchesPickupFilters(pItem)) return false;
+        if (IsMoneyItem(pItem)) return true;            // zen credits directly, no slot
+        if (g_pMyInventory == nullptr) return true;     // UI not ready, let server decide
+        return g_pMyInventory->CanFitItem(pItem);
+    }
+
+    bool CMuHelper::MatchesPickupFilters(ITEM* pItem)
+    {
         if ((m_config.bPickZen && IsMoneyItem(pItem))
             || (m_config.bPickJewel && IsJewelItem(pItem))
             || (m_config.bPickAncient && IsAncientItem(pItem))

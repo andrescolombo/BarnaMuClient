@@ -160,6 +160,7 @@ namespace SEASON3B
         int   FindEmptySlot(IN int cx, IN int cy) const;
         int   FindEmptySlotIncludingExtensions(IN int cx, IN int cy) const;
         int   FindEmptySlotIncludingExtensions(ITEM* pItem) const;
+        bool  CanFitItem(const ITEM* pItem) const;
         bool  IsItem(short int siType, bool bcheckPick = false) const;
         int   GetNumItemByKey(DWORD dwItemKey) const;
         int   GetNumItemByType(short sItemType) const;

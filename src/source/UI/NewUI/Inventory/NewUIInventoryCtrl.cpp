@@ -1577,6 +1577,17 @@ bool SEASON3B::CNewUIInventoryCtrl::FindTwoEmptySlots(int wA, int hA, int wB, in
     return false;
 }
 
+bool SEASON3B::CNewUIInventoryCtrl::CanFit(int width, int height) const
+{
+    if (width <= 0 || height <= 0) return false;
+    const int totalCells = m_nColumn * m_nRow;
+    for (int i = 0; i < totalCells; i++)
+    {
+        if (IsRectEmpty(i, width, height)) return true;
+    }
+    return false;
+}
+
 int CNewUIInventoryCtrl::GetIndex(int column, int row)
 {
     return column + row * m_nColumn + m_nIndexOffset;

@@ -68,6 +68,7 @@ namespace MUHelper
 		int ObtainItem();
 		int SelectItemToObtain();
 		bool ShouldObtainItem(int iItemId);
+		bool MatchesPickupFilters(ITEM* pItem);
 		ActionSkillType GetHealingSkill();
 		ActionSkillType GetDrainLifeSkill();
 		bool HasAssignedBuffSkill();

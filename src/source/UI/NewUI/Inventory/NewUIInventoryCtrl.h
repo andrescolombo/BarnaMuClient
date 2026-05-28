@@ -171,6 +171,7 @@ namespace SEASON3B
         // include the storage offset (like FindEmptySlot). Used for atomic all-or-nothing equip
         // swaps that displace two items. Returns false if both cannot fit at once.
         bool FindTwoEmptySlots(int wA, int hA, int wB, int hB, int& outSlotA, int& outSlotB) const;
+        bool CanFit(int width, int height) const;
         CNewUIInventoryCtrl();
         virtual ~CNewUIInventoryCtrl();
 

@@ -338,7 +338,6 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.kills++;
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void RecordExperience(unsigned long long experience)

@@ -1006,16 +1006,16 @@ bool CNewUIMyInventory::UpdateMouseEvent()
             {
                 if (Hero->Dead == 0)
                 {
+                    MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
                     SocketClient->ToGameServer()->SendDropItemRequest(tx, ty, iSourceIndex);
                     SendDropItem = iSourceIndex;
-                    MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
                 }
             }
             else if (pItemObj && pItemObj->ex_src_type == ITEM_EX_SRC_EQUIPMENT)
             {
+                MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
                 SocketClient->ToGameServer()->SendDropItemRequest(tx, ty, iSourceIndex);
                 SendDropItem = iSourceIndex;
-                MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
             }
             MouseUpdateTime = 0;
             MouseUpdateTimeMax = 6;

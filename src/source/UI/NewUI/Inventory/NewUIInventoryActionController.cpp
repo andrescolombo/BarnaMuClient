@@ -748,9 +748,9 @@ bool CNewUIInventoryActionController::TryDropItem(CNewUIInventoryCtrl* targetCon
     const int ty = Hero->PositionY;
     const int sourceIndex = pPickedItem->GetSourceLinealPos();
 
+    MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
     SocketClient->ToGameServer()->SendDropItemRequest(tx, ty, sourceIndex);
     SendDropItem = sourceIndex;
-    MUHelper::g_MuHelper.NoteOwnDrop(tx, ty);
 
     return true;
 }

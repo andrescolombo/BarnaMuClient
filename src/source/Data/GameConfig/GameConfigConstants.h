@@ -50,6 +50,8 @@ namespace CfgKeys
     inline constexpr wchar_t CfgKeyFriendRequestMode[] = L"FriendRequestMode";
     inline constexpr wchar_t CfgKeyGuildRequestMode[] = L"GuildRequestMode";
     inline constexpr wchar_t CfgKeyPartyRequestMode[] = L"PartyRequestMode";
+    inline constexpr wchar_t CfgKeyHelperSessionPanelX[] = L"SessionPanelX";
+    inline constexpr wchar_t CfgKeyHelperSessionPanelY[] = L"SessionPanelY";
 }
 
 namespace CfgDefaults
@@ -80,4 +82,7 @@ namespace CfgDefaults
     // I18N locale code; "en" is the default the resx generator falls back to.
     inline constexpr wchar_t CfgDefaultUILocale[] = L"en";
     inline constexpr int CfgDefaultRequestMode = 0;
+
+    // -1 sentinel: "no saved position yet" -> Panel falls back to its computed bottom-right anchor.
+    inline constexpr int CfgDefaultHelperSessionPanelCoord = -1;
 }

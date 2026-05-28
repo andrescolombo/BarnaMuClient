@@ -153,6 +153,28 @@ bool CNewUIHeroPositionInfo::UpdateMouseEvent()
 
 bool CNewUIHeroPositionInfo::UpdateKeyEvent()
 {
+    if (SEASON3B::IsPress(VK_F8))
+    {
+        const bool shiftHeld = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+        if (shiftHeld)
+        {
+            if (g_pNewUISystem->IsVisible(SEASON3B::INTERFACE_HELPER_SESSION_STATUS))
+            {
+                g_pNewUISystem->Hide(SEASON3B::INTERFACE_HELPER_SESSION_STATUS);
+            }
+            else
+            {
+                g_pNewUISystem->Show(SEASON3B::INTERFACE_HELPER_SESSION_STATUS);
+            }
+        }
+        else
+        {
+            MUHelper::g_MuHelper.Toggle();
+        }
+        PlayBuffer(SOUND_CLICK01);
+        return false;
+    }
+
     return true;
 }
 

@@ -64,6 +64,8 @@ void GameConfig::Load()
     m_friendRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyFriendRequestMode, CfgDefaultRequestMode);
     m_guildRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyGuildRequestMode, CfgDefaultRequestMode);
     m_partyRequestMode = ReadInt(CfgSectionMuHelper, CfgKeyPartyRequestMode, CfgDefaultRequestMode);
+    m_helperSessionPanelX = ReadInt(CfgSectionMuHelper, CfgKeyHelperSessionPanelX, CfgDefaultHelperSessionPanelCoord);
+    m_helperSessionPanelY = ReadInt(CfgSectionMuHelper, CfgKeyHelperSessionPanelY, CfgDefaultHelperSessionPanelCoord);
 
     // Strip keys/sections we used to write but no longer use, so user config
     // files don't accumulate orphans. Append one line per retired key — no
@@ -111,6 +113,15 @@ void GameConfig::Save()
     WriteInt(CfgSectionMuHelper, CfgKeyFriendRequestMode, m_friendRequestMode);
     WriteInt(CfgSectionMuHelper, CfgKeyGuildRequestMode, m_guildRequestMode);
     WriteInt(CfgSectionMuHelper, CfgKeyPartyRequestMode, m_partyRequestMode);
+    WriteInt(CfgSectionMuHelper, CfgKeyHelperSessionPanelX, m_helperSessionPanelX);
+    WriteInt(CfgSectionMuHelper, CfgKeyHelperSessionPanelY, m_helperSessionPanelY);
+}
+
+void GameConfig::SetHelperSessionPanelPosition(int x, int y)
+{
+    m_helperSessionPanelX = x;
+    m_helperSessionPanelY = y;
+    Save();
 }
 
 void GameConfig::SetWindowSize(int width, int height)

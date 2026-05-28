@@ -5,6 +5,7 @@
 
 #include "UI/NewUI/HUD/HelperSessionStatusPanel.h"
 
+#include "Data/GameConfig/GameConfig.h"
 #include "I18N/All.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "UI/NewUI/NewUICommon.h"
@@ -113,7 +114,18 @@ namespace UI::Helper::SessionStatus
 
         m_NewUIManager = newUIManager;
         m_NewUIManager->AddUIObj(SEASON3B::INTERFACE_HELPER_SESSION_STATUS, this);
-        SetPos(x, y);
+
+        const int savedX = GameConfig::GetInstance().GetHelperSessionPanelX();
+        const int savedY = GameConfig::GetInstance().GetHelperSessionPanelY();
+        if (savedX >= 0 && savedY >= 0)
+        {
+            SetPos(savedX, savedY);
+        }
+        else
+        {
+            SetPos(x, y);
+        }
+
         LoadText();
         Show(false);
         return true;
@@ -378,6 +390,7 @@ namespace UI::Helper::SessionStatus
 
     bool Panel::HandleDragging()
     {
+        const bool wasDragging = m_IsDragging;
         if (MouseLButtonPop)
         {
             m_IsDragging = false;
@@ -392,6 +405,11 @@ namespace UI::Helper::SessionStatus
 
         if (!m_IsDragging)
         {
+            // Persist the final position once the user releases the drag.
+            if (wasDragging)
+            {
+                GameConfig::GetInstance().SetHelperSessionPanelPosition(m_Pos.x, m_Pos.y);
+            }
             return false;
         }
 

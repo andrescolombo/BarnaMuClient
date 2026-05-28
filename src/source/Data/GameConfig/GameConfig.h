@@ -80,6 +80,11 @@ public:
     void SetGuildRequestMode(int mode);
     void SetPartyRequestMode(int mode);
 
+    // -1 means "no saved position", caller should use its own default.
+    int GetHelperSessionPanelX() const { return m_helperSessionPanelX; }
+    int GetHelperSessionPanelY() const { return m_helperSessionPanelY; }
+    void SetHelperSessionPanelPosition(int x, int y);
+
     // Helpers
     static std::wstring BinaryToHex(const BYTE* data, DWORD size);
     static std::vector<BYTE> HexToBinary(const std::wstring& hex);
@@ -121,6 +126,8 @@ private:
     int m_friendRequestMode;
     int m_guildRequestMode;
     int m_partyRequestMode;
+    int m_helperSessionPanelX;
+    int m_helperSessionPanelY;
 
     int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue);
     void WriteInt(const wchar_t* section, const wchar_t* key, int value);

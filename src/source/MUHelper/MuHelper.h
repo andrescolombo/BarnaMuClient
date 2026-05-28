@@ -68,9 +68,10 @@ namespace MUHelper
 		int SimulateMove(POINT posMove);
 		int ObtainItem();
 		int SelectItemToObtain();
-		bool ShouldObtainItem(int iItemId);
+		bool ShouldObtainItem(int iItemId, bool bZenAllowed);
 		bool MatchesPickupFilters(ITEM* pItem);
 		bool ClaimOwnDropAt(int tx, int ty);
+		void UpdateZenCleanupMode(const std::set<int>& itemIds);
 		ActionSkillType GetHealingSkill();
 		ActionSkillType GetDrainLifeSkill();
 		bool HasAssignedBuffSkill();
@@ -98,6 +99,7 @@ namespace MUHelper
 		std::set<int> m_setItems;
 		std::set<int> m_setOwnDropItems;
 		std::array<OwnDropRecord, kMaxOwnDrops> m_aOwnDrops;
+		bool m_bZenCleanupMode = false;
 		int m_iCurrentItem;
 		int m_iLastObtainItem;
 		int m_iObtainStuckTicks;

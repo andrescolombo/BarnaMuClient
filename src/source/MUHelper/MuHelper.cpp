@@ -113,6 +113,7 @@ namespace MUHelper
         m_iLastObtainItem = MAX_ITEMS;
         m_iObtainStuckTicks = 0;
         m_setSkippedItems.clear();
+        m_bZenCleanupMode = false;
         m_posOriginal = { Hero->PositionX, Hero->PositionY };
 
         m_iHuntingDistance = ComputeDistanceByRange(m_config.iHuntingRange);
@@ -1318,13 +1319,21 @@ namespace MUHelper
         return false;
     }
 
-    bool CMuHelper::ShouldObtainItem(int iItemId)
+    bool CMuHelper::ShouldObtainItem(int iItemId, bool bZenAllowed)
     {
         ITEM_t* pDrop = &Items[iItemId];
         ITEM* pItem = &pDrop->Item;
 
         if (!MatchesPickupFilters(pItem)) return false;
-        if (IsMoneyItem(pItem)) return true;            // zen credits directly, no slot
+        if (IsMoneyItem(pItem))
+        {
+            // bPickZen-driven zen pickup is conditional: only when zen has
+            // piled up faster than the bot is grinding it out, see
+            // UpdateZenCleanupMode. zen matched via bPickAllItems falls
+            // through unconditionally and keeps the prior behavior.
+            if (m_config.bPickZen) return bZenAllowed;
+            return true;
+        }
         if (g_pMyInventory == nullptr) return true;     // UI not ready, let server decide
         return g_pMyInventory->CanFitItem(pItem);
     }
@@ -1372,6 +1381,56 @@ namespace MUHelper
         }
         m_setItems.insert(iItemId);
         _itemsLock.unlock();
+    }
+
+    // Zen cleanup mode: bPickZen is conditional on zen actually piling up.
+    // Counts zen piles vs monsters within the configured obtaining range.
+    // The flag is sticky -- once tripped, stay in cleanup mode until every
+    // visible zen pile is gone, so the bot doesn't oscillate as it picks them
+    // up one by one. iObtainingRange = 0 means "no range configured" and the
+    // mode stays off (consistent with the user opting out of distance-based
+    // pickup).
+    void CMuHelper::UpdateZenCleanupMode(const std::set<int>& itemIds)
+    {
+        int zenCount = 0;
+        for (const int& iItemId : itemIds)
+        {
+            ITEM_t* pDrop = &Items[iItemId];
+            if (!IsMoneyItem(&pDrop->Item)) continue;
+            const int itemX = (int)(pDrop->Object.Position[0] / TERRAIN_SCALE);
+            const int itemY = (int)(pDrop->Object.Position[1] / TERRAIN_SCALE);
+            const int dist = ComputeDistanceBetween({ Hero->PositionX, Hero->PositionY }, { itemX, itemY });
+            if (dist <= m_iObtainingDistance) ++zenCount;
+        }
+
+        if (zenCount == 0)
+        {
+            m_bZenCleanupMode = false;
+            return;
+        }
+
+        std::set<int> setTargets;
+        {
+            _targetsLock.lock();
+            setTargets = m_setTargets;
+            _targetsLock.unlock();
+        }
+
+        int monsterCount = 0;
+        for (const int& iTargetId : setTargets)
+        {
+            const int iIndex = FindCharacterIndex(iTargetId);
+            if (iIndex == MAX_CHARACTERS_CLIENT) continue;
+            CHARACTER* pTarget = &CharactersClient[iIndex];
+            if (!IsMonster(pTarget) || pTarget->Dead != 0) continue;
+            const int dist = ComputeDistanceBetween({ Hero->PositionX, Hero->PositionY }, { pTarget->PositionX, pTarget->PositionY });
+            if (dist <= m_iObtainingDistance) ++monsterCount;
+        }
+
+        if (zenCount > monsterCount)
+        {
+            m_bZenCleanupMode = true;
+        }
     }
 
     // Own-drop tracking: if the player just threw something away, the bot
@@ -1458,6 +1517,9 @@ namespace MUHelper
             _itemsLock.unlock();
         }
 
+        UpdateZenCleanupMode(setItems);
+        const bool bZenAllowed = m_bZenCleanupMode;
+
         for (const int& iItemId : setItems)
         {
             if (m_setSkippedItems.count(iItemId) > 0)
@@ -1465,7 +1527,7 @@ namespace MUHelper
                 continue;
             }
 
-            if (!ShouldObtainItem(iItemId))
+            if (!ShouldObtainItem(iItemId, bZenAllowed))
             {
                 continue;
             }

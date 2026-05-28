@@ -129,11 +129,6 @@ namespace GameLogic::Helper::SessionStats
 
         void UpdateIdleTime(int deltaMilliseconds)
         {
-            if (g_State.activeMilliseconds < IDLE_THRESHOLD_MS)
-            {
-                return;
-            }
-
             if (g_State.activeMilliseconds - g_State.lastActivityMilliseconds >= IDLE_THRESHOLD_MS)
             {
                 g_State.idleMilliseconds += deltaMilliseconds;
@@ -360,7 +355,6 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.experienceGained += experience;
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void SampleExperience(long long currentBaseExperience, long long currentMasterExperience)
@@ -400,7 +394,6 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.zenPicked += static_cast<unsigned int>(amount);
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void RecordJewelPicked()
@@ -412,7 +405,6 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.jewelsPicked++;
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void RecordPotionUsed(PotionKind kind)
@@ -431,7 +423,6 @@ namespace GameLogic::Helper::SessionStats
         {
             g_State.mpPotionsUsed++;
         }
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void RecordMovementAttempt(int positionX, int positionY)
@@ -446,7 +437,6 @@ namespace GameLogic::Helper::SessionStats
         }
 
         g_State.movementAttemptThisTick = true;
-        g_State.lastActivityMilliseconds = g_State.activeMilliseconds;
     }
 
     void RecordWarning(Warning warning)

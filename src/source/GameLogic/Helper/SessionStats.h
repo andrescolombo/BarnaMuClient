@@ -3,7 +3,7 @@
 namespace GameLogic::Helper::SessionStats
 {
     inline constexpr int DPS_ROLLING_WINDOW_SECONDS = 5;
-    inline constexpr int IDLE_THRESHOLD_MS = 5000;
+    inline constexpr int IDLE_THRESHOLD_MS = 2000;
     inline constexpr int STUCK_THRESHOLD_MS = 3000;
     inline constexpr int NO_TARGET_THRESHOLD_MS = 2000;
     inline constexpr int RECENT_TARGET_TTL_MS = 8000;

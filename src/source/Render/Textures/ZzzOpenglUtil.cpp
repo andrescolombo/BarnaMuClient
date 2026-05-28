@@ -22,6 +22,18 @@ extern "C" void DevEditor_GetCameraFogRange(const char* cameraName, float viewFa
 
 extern "C" CameraManager& CameraManager_Instance();
 
+#if defined(_DEBUG)
+static void CheckGLError(const char* file, int line)
+{
+    for (GLenum err = glGetError(); err != GL_NO_ERROR; err = glGetError())
+    {
+        char buffer[256];
+        _snprintf_s(buffer, _TRUNCATE, "[GL] error 0x%04X at %s:%d\n", err, file, line);
+        OutputDebugStringA(buffer);
+    }
+}
+#endif // defined(_DEBUG)
+
 int     OpenglWindowX = 0;
 int     OpenglWindowY = 0;
 int     OpenglWindowWidth = 1024;

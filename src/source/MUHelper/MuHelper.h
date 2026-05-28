@@ -96,6 +96,7 @@ namespace MUHelper
 		std::set<int> m_setTargets;
 		std::set<int> m_setTargetsAttacking;
 		std::set<int> m_setItems;
+		std::set<int> m_setOwnDropItems;
 		std::array<OwnDropRecord, kMaxOwnDrops> m_aOwnDrops;
 		int m_iCurrentItem;
 		int m_iLastObtainItem;

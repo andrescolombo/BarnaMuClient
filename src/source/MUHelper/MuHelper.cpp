@@ -1359,11 +1359,18 @@ namespace MUHelper
     void CMuHelper::AddItem(int iItemId, POINT posWhere)
     {
         _itemsLock.lock();
-        m_setItems.insert(iItemId);
+        if (m_setOwnDropItems.count(iItemId) > 0)
+        {
+            _itemsLock.unlock();
+            return;
+        }
         if (ClaimOwnDropAt(posWhere.x, posWhere.y))
         {
-            m_setSkippedItems.insert(iItemId);
+            m_setOwnDropItems.insert(iItemId);
+            _itemsLock.unlock();
+            return;
         }
+        m_setItems.insert(iItemId);
         _itemsLock.unlock();
     }
 
@@ -1415,6 +1422,7 @@ namespace MUHelper
     {
         _itemsLock.lock();
         m_setItems.erase(iItemId);
+        m_setOwnDropItems.erase(iItemId);
         _itemsLock.unlock();
 
         m_setSkippedItems.erase(iItemId);

@@ -38,6 +38,7 @@ namespace MUHelper
 
 		void AddItem(int iItemId, POINT posDropped);
 		void DeleteItem(int iItemId);
+		void NoteOwnDrop(int tx, int ty);
 
 	private:
 		void WorkLoop(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
@@ -69,6 +70,7 @@ namespace MUHelper
 		int SelectItemToObtain();
 		bool ShouldObtainItem(int iItemId);
 		bool MatchesPickupFilters(ITEM* pItem);
+		bool ClaimOwnDropAt(int tx, int ty);
 		ActionSkillType GetHealingSkill();
 		ActionSkillType GetDrainLifeSkill();
 		bool HasAssignedBuffSkill();
@@ -78,6 +80,15 @@ namespace MUHelper
 		bool HasAnyTarget() const;
 
 	private:
+		static constexpr int kMaxOwnDrops = 8;
+
+		struct OwnDropRecord
+		{
+			int x = -1;
+			int y = -1;
+			DWORD tickRecorded = 0;
+		};
+
 		ConfigData m_config;
 		POINT m_posOriginal;
 		std::thread m_timerThread;
@@ -85,6 +96,7 @@ namespace MUHelper
 		std::set<int> m_setTargets;
 		std::set<int> m_setTargetsAttacking;
 		std::set<int> m_setItems;
+		std::array<OwnDropRecord, kMaxOwnDrops> m_aOwnDrops;
 		int m_iCurrentItem;
 		int m_iLastObtainItem;
 		int m_iObtainStuckTicks;

@@ -7,6 +7,7 @@
 
 #include "Data/GameConfig/GameConfig.h"
 #include "I18N/All.h"
+#include "Engine/Object/ZzzCharacter.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "UI/NewUI/NewUICommon.h"
 #include "UI/NewUI/NewUISystem.h"
@@ -472,7 +473,16 @@ namespace UI::Helper::SessionStatus
             return;
         }
 
-        CopyWide(output, outputLength, gMapManager.GetMapName(gMapManager.WorldActive));
+        if (Hero == nullptr)
+        {
+            CopyWide(output, outputLength, gMapManager.GetMapName(gMapManager.WorldActive));
+            return;
+        }
+
+        mu_swprintf_s(output, outputLength, L"%ls (%d, %d)",
+            gMapManager.GetMapName(gMapManager.WorldActive),
+            Hero->PositionX,
+            Hero->PositionY);
     }
 
     void Panel::FormatDeathReason(GameLogic::Helper::SessionStats::DeathReason reason, wchar_t* output, int outputLength) const

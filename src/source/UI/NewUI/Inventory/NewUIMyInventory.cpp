@@ -1924,6 +1924,21 @@ bool CNewUIMyInventory::EquipmentWindowProcess()
             ITEM* pEquipmentItemSlot = &CharacterMachine->Equipment[iTargetIndex];
             if (pEquipmentItemSlot && pEquipmentItemSlot->Type != -1)
             {
+                // Dropping an equippable inventory item onto an occupied slot replaces it: the
+                // occupant is unequipped to the bag, then the dropped item is equipped. Change
+                // rings keep their dedicated handling and are not auto-replaced here.
+                const STORAGE_TYPE sourceType = pPickedItem->GetSourceStorageType();
+                if (sourceType == STORAGE_TYPE::INVENTORY
+                    && IsEquipable(iTargetIndex, pItemObj)
+                    && !g_ChangeRingMgr->CheckChangeRing(pItemObj->Type))
+                {
+                    const DWORD dwItemKey = pItemObj->Key;
+                    CNewUIInventoryCtrl* pOwner = pPickedItem->GetOwnerInventory();
+                    CNewUIInventoryCtrl::BackupPickedItem();
+                    m_ActionController.EquipToSlotReplacing(pOwner, dwItemKey, iTargetIndex);
+                    return true;
+                }
+
                 return true;
             }
 

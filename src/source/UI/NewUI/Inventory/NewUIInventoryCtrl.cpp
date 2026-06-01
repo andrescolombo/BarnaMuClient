@@ -1554,6 +1554,40 @@ bool SEASON3B::CNewUIInventoryCtrl::CanFit(int width, int height) const
     return false;
 }
 
+bool SEASON3B::CNewUIInventoryCtrl::FindTwoEmptySlots(int wA, int hA, int wB, int hB, int& outSlotA, int& outSlotB) const
+{
+    if (wA <= 0 || hA <= 0 || wB <= 0 || hB <= 0) return false;
+
+    const int totalCells = m_nColumn * m_nRow;
+    for (int a = 0; a < totalCells; a++)
+    {
+        if (!IsRectEmpty(a, wA, hA)) continue;
+
+        const int ax = a % m_nColumn;
+        const int ay = a / m_nColumn;
+
+        for (int b = 0; b < totalCells; b++)
+        {
+            if (!IsRectEmpty(b, wB, hB)) continue;
+
+            const int bx = b % m_nColumn;
+            const int by = b / m_nColumn;
+
+            // Both placements are individually empty; accept the first non-overlapping pair.
+            const bool bOverlap =
+                !(ax + wA <= bx || bx + wB <= ax || ay + hA <= by || by + hB <= ay);
+            if (!bOverlap)
+            {
+                outSlotA = a + m_nIndexOffset;
+                outSlotB = b + m_nIndexOffset;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 int CNewUIInventoryCtrl::GetIndex(int column, int row)
 {
     return column + row * m_nColumn + m_nIndexOffset;

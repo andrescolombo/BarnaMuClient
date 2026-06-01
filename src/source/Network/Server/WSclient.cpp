@@ -45,6 +45,7 @@
 #include "UI/NewUI/Dialogs/NewUICommonMessageBox.h"
 #include "UI/NewUI/Dialogs/NewUICustomMessageBox.h"
 #include "UI/NewUI/Inventory/NewUIInventoryCtrl.h"
+#include "UI/NewUI/Inventory/NewUIInventoryActionController.h"
 #include "GameLogic/Events/w_CursedTemple.h"
 #include "GameLogic/Skills/SummonSystem.h"
 #include "GameLogic/Skills/SkillManager.h"
@@ -798,6 +799,8 @@ extern void StopMusic();
 
 void InitGame()
 {
+    SEASON3B::CancelPendingEquipSwap();   // drop any half-finished equip swap from a prior session
+
     EnableUse = 0;
     SendGetItem = -1;
     SummonLife = 0;
@@ -6196,9 +6199,13 @@ BOOL ReceiveEquipmentItemExtended(std::span<const BYTE> ReceiveBuffer)
         }
 
         PlayBuffer(SOUND_GET_ITEM01);
+
+        // If a right-click "always equip" unequipped an occupant first, equip the new item now.
+        SEASON3B::ProcessPendingEquipAfterMove();
     }
     else
     {
+        SEASON3B::CancelPendingEquipSwap();
         SEASON3B::CNewUIInventoryCtrl::BackupPickedItem();
         if (g_pStorageInventory->IsItemAutoMove())
         {

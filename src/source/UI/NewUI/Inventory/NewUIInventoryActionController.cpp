@@ -25,6 +25,225 @@
 namespace SEASON3B
 {
 
+namespace
+{
+    // A two-handed weapon can require BOTH hands freed (its slot + the off-hand shield).
+    constexpr int MAX_EQUIP_BLOCKERS = 2;
+
+    // Right-click "always equip": the server only moves an item onto an EMPTY equipment slot, one
+    // move at a time, and acks asynchronously. So when the target slot — or a conflicting off-hand
+    // (e.g. equipping a two-handed weapon over a shield) — is occupied, we unequip each blocking
+    // item to inventory first and only equip the new item once every required slot is free. This
+    // record carries that multi-step sequence across ReceiveEquipmentItemExtended.
+    struct PendingEquip
+    {
+        bool  active       = false;
+        CNewUIInventoryCtrl* pNewItemInvenCtrl = nullptr;     // control holding the item to equip (main or extended)
+        int   dstEquipSlot = -1;                              // where the new item will be equipped
+        DWORD newItemKey   = 0;                               // identifies the new inventory item
+        int   freeSlots[MAX_EQUIP_BLOCKERS] = { -1, -1 };     // equipment slots still to unequip
+        int   freeDest[MAX_EQUIP_BLOCKERS]  = { -1, -1 };     // reserved inventory slot for each
+        int   freeCount    = 0;
+    };
+
+    PendingEquip s_pendingEquip{};
+
+    void ClearPendingEquip()
+    {
+        s_pendingEquip.active            = false;
+        s_pendingEquip.pNewItemInvenCtrl = nullptr;
+        s_pendingEquip.freeCount         = 0;
+    }
+
+    // Pick an inventory item and request the server to move it to an equipment slot.
+    bool EquipFromInventory(CNewUIInventoryCtrl* targetControl, ITEM* pItem, int iSrcIndex, int iDstSlot)
+    {
+        if (targetControl == nullptr || pItem == nullptr)
+        {
+            return false;
+        }
+
+        if (!CNewUIInventoryCtrl::CreatePickedItem(nullptr, pItem))
+        {
+            return false;
+        }
+
+        CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+        if (pPickedItem == nullptr)
+        {
+            return false;
+        }
+
+        targetControl->RemoveItem(pItem);
+        pPickedItem->HidePickedItem();
+
+        SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, iSrcIndex, pItem, STORAGE_TYPE::INVENTORY, iDstSlot);
+        return true;
+    }
+
+    // Pick the item in an equipment slot and request the server to move it to a pre-reserved
+    // inventory slot. The destination was reserved up front so the whole multi-item swap is
+    // all-or-nothing (see SwapEquipItem); -1 falls back to a fresh search as a safety net.
+    bool UnequipToInventory(int nEquipSlot, int nReservedDest)
+    {
+        if (g_pMyInventory == nullptr || nEquipSlot < 0 || nEquipSlot >= MAX_EQUIPMENT_INDEX)
+        {
+            return false;
+        }
+
+        ITEM* pEquipped = &CharacterMachine->Equipment[nEquipSlot];
+        const int iTempSlot = (nReservedDest != -1) ? nReservedDest : g_pMyInventory->FindEmptySlot(pEquipped);
+        if (iTempSlot == -1)
+        {
+            return false;
+        }
+
+        if (CNewUIInventoryCtrl::CreatePickedItem(nullptr, pEquipped))
+        {
+            CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
+            g_pMyInventory->UnequipItem(nEquipSlot);
+            if (pPickedItem != nullptr)
+            {
+                pPickedItem->HidePickedItem();
+            }
+        }
+
+        SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, nEquipSlot, pEquipped, STORAGE_TYPE::INVENTORY, iTempSlot);
+        return true;
+    }
+
+    bool EquippedSlotItemSize(int nSlot, int& outWidth, int& outHeight)
+    {
+        if (nSlot < 0 || nSlot >= MAX_EQUIPMENT_INDEX)
+        {
+            return false;
+        }
+
+        const ITEM* pItem = &CharacterMachine->Equipment[nSlot];
+        if (pItem->Type == -1)
+        {
+            return false;
+        }
+
+        const ITEM_ATTRIBUTE* pAttr = &ItemAttribute[pItem->Type];
+        outWidth  = pAttr->Width;
+        outHeight = pAttr->Height;
+        return true;
+    }
+
+    // Reserve a distinct inventory slot for every blocking equipment item, all at once. Returns
+    // false (reserving nothing) unless ALL of them fit, so the caller can abort atomically and
+    // leave the character untouched (mirrors WoW: a 2H swap fails cleanly when the bag is full).
+    bool ReserveSlotsForBlockers(CNewUIInventoryCtrl* pInvenCtrl, const int* blockers, int nBlockers, int* outDest)
+    {
+        if (pInvenCtrl == nullptr || nBlockers <= 0)
+        {
+            return false;
+        }
+
+        int wA, hA;
+        if (!EquippedSlotItemSize(blockers[0], wA, hA))
+        {
+            return false;
+        }
+
+        int wB, hB;
+        const bool bSecond = (nBlockers >= 2) && EquippedSlotItemSize(blockers[1], wB, hB);
+
+        // Only the first slot holds a movable item: a single free slot is enough.
+        if (!bSecond)
+        {
+            const int slot = pInvenCtrl->FindEmptySlot(wA, hA);
+            if (slot == -1)
+            {
+                return false;
+            }
+            outDest[0] = slot;
+            outDest[1] = -1;
+            return true;
+        }
+
+        // Both items must fit at once in non-overlapping space.
+        return pInvenCtrl->FindTwoEmptySlots(wA, hA, wB, hB, outDest[0], outDest[1]);
+    }
+}
+
+void CancelPendingEquipSwap()
+{
+    ClearPendingEquip();
+}
+
+void ProcessPendingEquipAfterMove()
+{
+    if (!s_pendingEquip.active)
+    {
+        return;
+    }
+
+    // Unequip the next still-occupied blocking slot, one per move ack, before the final equip.
+    while (s_pendingEquip.freeCount > 0)
+    {
+        const int nIdx  = --s_pendingEquip.freeCount;
+        const int nSlot = s_pendingEquip.freeSlots[nIdx];
+        const int nDest = s_pendingEquip.freeDest[nIdx];
+        if (nSlot < 0 || nSlot >= MAX_EQUIPMENT_INDEX)
+        {
+            continue;
+        }
+
+        if (CharacterMachine->Equipment[nSlot].Type == -1)
+        {
+            continue;   // already empty -> nothing to move, skip to the next blocker
+        }
+
+        if (!UnequipToInventory(nSlot, nDest))
+        {
+            ClearPendingEquip();   // no inventory space: stop safely, the new item is untouched
+            return;
+        }
+
+        return;   // wait for this unequip's ack before handling the next step
+    }
+
+    // Every blocking slot is now free: equip the new item from the control it lives in.
+    const int   iDstSlot  = s_pendingEquip.dstEquipSlot;
+    const DWORD dwItemKey = s_pendingEquip.newItemKey;
+    CNewUIInventoryCtrl* pInvenCtrl = s_pendingEquip.pNewItemInvenCtrl;
+    ClearPendingEquip();
+
+    if (pInvenCtrl == nullptr)
+    {
+        return;
+    }
+
+    ITEM* pNewItem = pInvenCtrl->FindItemByKey(dwItemKey);
+    if (pNewItem == nullptr)
+    {
+        return;   // item moved/changed since we queued the swap; abort safely
+    }
+
+    // Final guards: never pick the item unless the destination is genuinely equippable now.
+    if (iDstSlot < 0 || iDstSlot >= MAX_EQUIPMENT_INDEX || CharacterMachine->Equipment[iDstSlot].Type != -1)
+    {
+        return;
+    }
+
+    const ITEM_ATTRIBUTE* pNewAttr = &ItemAttribute[pNewItem->Type];
+    if (pNewAttr->TwoHand && iDstSlot == EQUIPMENT_WEAPON_RIGHT
+        && CharacterMachine->Equipment[EQUIPMENT_WEAPON_LEFT].Type != -1)
+    {
+        return;   // two-handed weapon still blocked by the off-hand; do not lose the item
+    }
+
+    const int iSrcIndex = pInvenCtrl->GetIndexByItem(pNewItem);
+    if (iSrcIndex < 0)
+    {
+        return;
+    }
+
+    EquipFromInventory(pInvenCtrl, pNewItem, iSrcIndex, iDstSlot);
+}
+
 CNewUIInventoryActionController::CNewUIInventoryActionController()
     : m_pContext(nullptr)
 {
@@ -358,6 +577,7 @@ bool CNewUIInventoryActionController::TryEquipItem(CNewUIInventoryCtrl* targetCo
         return true;
     }
 
+    // Prefer an empty alternate hand/ring (e.g. equip a 1H weapon to the free off-hand).
     if (IsSlotOccupied(nDstIndex))
     {
         const int nAltSlot = FindAlternateEquipSlot(nDstIndex, pItem);
@@ -366,10 +586,6 @@ bool CNewUIInventoryActionController::TryEquipItem(CNewUIInventoryCtrl* targetCo
         {
             nDstIndex = nAltSlot;
         }
-        else
-        {
-            return true;
-        }
     }
 
     if (!m_pContext->IsEquipable(nDstIndex, pItem))
@@ -377,22 +593,121 @@ bool CNewUIInventoryActionController::TryEquipItem(CNewUIInventoryCtrl* targetCo
         return true;
     }
 
-    if (!CNewUIInventoryCtrl::CreatePickedItem(nullptr, pItem))
+    // Find every equipment slot that must be emptied before this equip can succeed: the target
+    // slot itself plus any two-handed-weapon hand conflict (which IsEquipable does not check).
+    int blockers[MAX_EQUIP_BLOCKERS];
+    const int nBlockers = CollectEquipBlockers(pItem, nDstIndex, blockers);
+
+    if (nBlockers == 0)
     {
-        return false;
+        return EquipFromInventory(targetControl, pItem, iSrcIndex, nDstIndex);
     }
 
-    CNewUIPickedItem* pPickedItem = CNewUIInventoryCtrl::GetPickedItem();
-    if (pPickedItem == nullptr)
+    return SwapEquipItem(targetControl, pItem, nDstIndex, blockers, nBlockers);
+}
+
+int CNewUIInventoryActionController::CollectEquipBlockers(ITEM* pItem, int nDstIndex, int* outSlots) const
+{
+    int nCount = 0;
+    const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
+
+    if (IsSlotOccupied(nDstIndex))
     {
-        return false;
+        outSlots[nCount++] = nDstIndex;
     }
 
-    targetControl->RemoveItem(pItem);
-    pPickedItem->HidePickedItem();
+    // A two-handed weapon needs the off-hand empty too.
+    if (pItemAttr->TwoHand && nDstIndex == EQUIPMENT_WEAPON_RIGHT && IsSlotOccupied(EQUIPMENT_WEAPON_LEFT))
+    {
+        outSlots[nCount++] = EQUIPMENT_WEAPON_LEFT;
+    }
 
-    SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, iSrcIndex, pItem, STORAGE_TYPE::INVENTORY, nDstIndex);
+    // Equipping into the off-hand while the main hand holds a two-handed weapon: free that weapon.
+    if (nDstIndex == EQUIPMENT_WEAPON_LEFT)
+    {
+        const ITEM* pRight = &CharacterMachine->Equipment[EQUIPMENT_WEAPON_RIGHT];
+        if (pRight->Type != -1 && ItemAttribute[pRight->Type].TwoHand && nCount < MAX_EQUIP_BLOCKERS)
+        {
+            outSlots[nCount++] = EQUIPMENT_WEAPON_RIGHT;
+        }
+    }
+
+    return nCount;
+}
+
+bool CNewUIInventoryActionController::SwapEquipItem(CNewUIInventoryCtrl* pNewItemInvenCtrl, ITEM* pItem, int nDstSlot, const int* blockers, int nBlockers) const
+{
+    // Displaced equipment always returns to the main inventory, so reserve space there.
+    CNewUIInventoryCtrl* pInvenCtrl = (g_pMyInventory != nullptr) ? g_pMyInventory->GetInventoryCtrl() : nullptr;
+    if (pInvenCtrl == nullptr || pNewItemInvenCtrl == nullptr || nBlockers <= 0)
+    {
+        return true;
+    }
+
+    // Reserve an inventory slot for EVERY item we are about to displace, up front. If they do not
+    // all fit at once, abort and unequip nothing — the swap is all-or-nothing, like WoW.
+    int dest[MAX_EQUIP_BLOCKERS] = { -1, -1 };
+    if (!ReserveSlotsForBlockers(pInvenCtrl, blockers, nBlockers, dest))
+    {
+        g_pSystemLogBox->AddText(I18N::Game::InventorySpaceIsInsufficient, TYPE_ERROR_MESSAGE);
+        return true;
+    }
+
+    // Queue the blocking slots to unequip into their reserved destinations, then drive the
+    // sequence. The new item is only equipped once every blocker has been cleared (see
+    // ProcessPendingEquipAfterMove), so it is never lost even on an intermediate server rejection.
+    s_pendingEquip.active            = true;
+    s_pendingEquip.pNewItemInvenCtrl = pNewItemInvenCtrl;
+    s_pendingEquip.dstEquipSlot      = nDstSlot;
+    s_pendingEquip.newItemKey        = pItem->Key;
+    s_pendingEquip.freeCount         = 0;
+
+    for (int i = 0; i < nBlockers && i < MAX_EQUIP_BLOCKERS; ++i)
+    {
+        s_pendingEquip.freeSlots[s_pendingEquip.freeCount] = blockers[i];
+        s_pendingEquip.freeDest[s_pendingEquip.freeCount]  = dest[i];
+        s_pendingEquip.freeCount++;
+    }
+
+    ProcessPendingEquipAfterMove();   // performs the first unequip
     return true;
+}
+
+bool CNewUIInventoryActionController::EquipToSlotReplacing(CNewUIInventoryCtrl* pInvenCtrl, DWORD dwItemKey, int nDstSlot) const
+{
+    if (m_pContext == nullptr || pInvenCtrl == nullptr
+        || nDstSlot < 0 || nDstSlot >= MAX_EQUIPMENT_INDEX)
+    {
+        return false;
+    }
+
+    ITEM* pItem = pInvenCtrl->FindItemByKey(dwItemKey);
+    if (pItem == nullptr)
+    {
+        return false;   // not in this inventory; leave it where it was restored
+    }
+
+    if (!m_pContext->IsEquipable(nDstSlot, pItem))
+    {
+        return true;
+    }
+
+    const int iSrcIndex = pInvenCtrl->GetIndexByItem(pItem);
+    if (iSrcIndex < 0)
+    {
+        return false;
+    }
+
+    // Same unequip-then-equip path as right-click, but into the exact slot the item was dropped on.
+    int blockers[MAX_EQUIP_BLOCKERS];
+    const int nBlockers = CollectEquipBlockers(pItem, nDstSlot, blockers);
+
+    if (nBlockers == 0)
+    {
+        return EquipFromInventory(pInvenCtrl, pItem, iSrcIndex, nDstSlot);
+    }
+
+    return SwapEquipItem(pInvenCtrl, pItem, nDstSlot, blockers, nBlockers);
 }
 
 bool CNewUIInventoryActionController::TryDropItem(CNewUIInventoryCtrl* targetControl, ITEM* pItem) const

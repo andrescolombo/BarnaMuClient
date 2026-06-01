@@ -21,6 +21,11 @@ public:
     void SetContext(IInventoryActionContext* pContext);
     bool HandleInventoryActions(CNewUIInventoryCtrl* targetControl) const;
 
+    // Equip an inventory item (identified by key, in the given control — main or extended) into a
+    // specific equipment slot, unequipping any occupant first (and freeing a two-handed conflict).
+    // Used by drag-drop to replace on drop.
+    bool EquipToSlotReplacing(CNewUIInventoryCtrl* pInvenCtrl, DWORD dwItemKey, int nDstSlot) const;
+
 private:
     bool HandlePickedItemPlacement(CNewUIInventoryCtrl* targetControl) const;
     bool TryApplyJewel(CNewUIInventoryCtrl* targetControl, CNewUIPickedItem* pPickedItem, ITEM* pPickItem, int iSourceIndex, int iTargetIndex) const;
@@ -34,6 +39,8 @@ private:
     bool HandleSellToNPC(CNewUIInventoryCtrl* targetControl) const;
     bool HandleInventoryRightClickActions(CNewUIInventoryCtrl* targetControl) const;
     bool TryEquipItem(CNewUIInventoryCtrl* targetControl, ITEM* pItem, int iSrcIndex) const;
+    int  CollectEquipBlockers(ITEM* pItem, int nDstIndex, int* outSlots) const;
+    bool SwapEquipItem(CNewUIInventoryCtrl* pNewItemInvenCtrl, ITEM* pItem, int nDstSlot, const int* blockers, int nBlockers) const;
     bool TryDropItem(CNewUIInventoryCtrl* targetControl, ITEM* pItem) const;
 
     int  FindAlternateEquipSlot(int nOriginalSlot, ITEM* pItem) const;
@@ -47,6 +54,10 @@ private:
 
     IInventoryActionContext* m_pContext;
 };
+
+// Sequences the deferred "equip after unequip" step on the inventory move ack.
+void ProcessPendingEquipAfterMove();
+void CancelPendingEquipSwap();
 
 } // namespace SEASON3B
 

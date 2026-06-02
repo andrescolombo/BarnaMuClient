@@ -40,6 +40,8 @@ build-mingw/
 
 **/*.log
 # Local-only files
+.env
+client_exports/
 docs/reviews/
 
 # graphify (https://github.com/safishamsi/graphify)

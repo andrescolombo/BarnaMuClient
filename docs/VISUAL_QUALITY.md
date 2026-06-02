@@ -189,11 +189,6 @@ User builds via VS2022 (`Compilar_Release.bat` / `Compilar_Debug.bat`). **AI doe
 8. **Persistence** — values in `config.ini` under `[Graphics]`; survive restart.
 9. **MSAA** — UI selectable; restart hint shown; no GL change yet (panel + INI only this phase).
 
-### Post-implementation
-- Run `graphify update .` so the new symbols (`CNewUIVisualQualityWindow`, new GameConfig getters, `SetVSyncEnabled`, etc.) enter the graph.
-
----
-
 ## Out of Scope (separate change)
 - Full MSAA pixel-format reconfigure: dummy window + `wglChoosePixelFormatARB` + main-context recreation. Tracked separately to isolate regression risk on display-mode switching.
 - NPOT padding fix (edge-pixel replicate before upload) — needed before mipmap can safely cover non-power-of-two textures. Currently mitigated by skipping mipmaps on padded uploads.

@@ -30,8 +30,6 @@ This file tracks the outstanding feature requests, gameplay tweaks, and UI impro
 ---
 
 ## 2. Completed / Resolved Tasks
-- [x] **LLM Task Directory Map (`LLM.md`)**
-  - High-density blueprint file mapping client namespaces, directories, common modding tasks, and styling guidelines.
 - [x] **Minimap Clicking Math Design Guide (`docs/map_navigation_movement.md`)**
   - Mathematical reference mapping screen clicking, inverse rotation vectors, and zoom scaling offsets back to world tile grids.
 - [x] **Audio System / WAV Files Copying**

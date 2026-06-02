@@ -21,6 +21,7 @@
 
 constexpr int MAX_ACTIONABLE_DISTANCE = 10;
 constexpr int DEFAULT_DURABILITY_THRESHOLD = 50;
+constexpr int MUHELPER_TIMER_INTERVAL_MS = 50;
 constexpr DWORD OWN_DROP_TTL_MS = 5000;
 constexpr int OWN_DROP_TILE_TOLERANCE = 1;
 

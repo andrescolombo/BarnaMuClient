@@ -163,7 +163,7 @@ namespace UI::Helper::SessionStatus
     void Panel::LoadMetricText()
     {
         struct TextSpec { TextId id; const wchar_t* text; };
-        static constexpr TextSpec specs[] =
+        static const TextSpec specs[] =
         {
             { TextId::Title, I18N::Game::HelperSessionStatusTitle },
             { TextId::SessionTime, I18N::Game::HelperSessionStatusSessionTime },
@@ -193,7 +193,7 @@ namespace UI::Helper::SessionStatus
     void Panel::LoadStateText()
     {
         struct TextSpec { TextId id; const wchar_t* text; };
-        static constexpr TextSpec specs[] =
+        static const TextSpec specs[] =
         {
             { TextId::NotAvailable, I18N::Game::HelperSessionStatusNotAvailable },
             { TextId::Unknown, I18N::Game::HelperSessionStatusUnknown },

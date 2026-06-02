@@ -313,11 +313,6 @@ namespace MUHelper
         return static_cast<int>(std::ceil(std::sqrt(iDx * iDx + iDy * iDy)));
     }
 
-    int CMuHelper::ComputeDistanceByRange(int iRange)
-    {
-        return ComputeDistanceBetween({ 0, 0 }, { iRange, iRange });
-    }
-
     int CMuHelper::GetBasicAttackIntervalMs() const
     {
         // Mimic Webzen swing cadence: ~1.0 swings/s at AttackSpeed=0, scaling
